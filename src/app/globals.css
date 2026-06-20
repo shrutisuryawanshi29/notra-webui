@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-n-background: #2B241E;
+  --color-n-background-light: #332A23;
+  --color-n-background-ivory: #1F1A16;
+  --color-n-primary-brown: #EDE1D1;
+  --color-n-primary-brown-light: #D8C6B4;
+  --color-n-secondary-brown: #C99152;
+  --color-n-secondary-tan: #A97845;
+  --color-n-card: #362D25;
+  --color-n-card-alt: #40342B;
+  --color-n-text-primary: #F4E9DA;
+  --color-n-text-secondary: #CBB9A7;
+  --color-n-text-muted: #9B8778;
+  --color-n-expense: #C7745A;
+  --color-n-expense-light: #E09A82;
+  --color-n-income: #8CA37D;
+  --color-n-income-light: #B2C5A6;
+  --color-n-border: #4C4036;
+  --color-n-accent: #C99152;
+  --color-n-accent-secondary: #A97845;
+  --color-n-warning: #C49A5A;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: #2B241E;
+  color: #F4E9DA;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #4C4036 transparent;
+}

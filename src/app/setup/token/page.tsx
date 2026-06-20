@@ -1,0 +1,109 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { loadSetupState, saveSetupState, SetupState } from '@/lib/setup-state'
+import { isSetupComplete } from '@/lib/config'
+import Card from '@/components/Card'
+import StepIndicator from '@/components/setup/StepIndicator'
+
+const STEPS = ['Token', 'Pages', 'Roles', 'Mapping']
+
+export default function TokenStep() {
+  const router = useRouter()
+  const [token, setToken] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<'idle' | 'success' | 'error'>('idle')
+  const [testMessage, setTestMessage] = useState('')
+
+  useEffect(() => {
+    if (isSetupComplete()) {
+      router.replace('/dashboard')
+      return
+    }
+    const state = loadSetupState()
+    if (state?.notionToken) {
+      router.replace('/setup/pages')
+    }
+  }, [router])
+
+  const handleTest = async () => {
+    if (!token.trim()) return
+    setTesting(true)
+    setTestResult('idle')
+    setTestMessage('')
+    try {
+      const res = await fetch('/api/notion/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.trim() }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        setTestResult('success')
+        setTestMessage(`Connected as ${data.user.name}`)
+      } else {
+        setTestResult('error')
+        setTestMessage(data.error || 'Invalid token')
+      }
+    } catch {
+      setTestResult('error')
+      setTestMessage('Failed to reach server')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const handleContinue = () => {
+    const existing = loadSetupState() || {
+      notionToken: '',
+      selectedPageId: null,
+      selectedPageTitle: null,
+      discoveredDatabases: [],
+      databaseMappings: {},
+    }
+    existing.notionToken = token.trim()
+    saveSetupState(existing)
+    router.push('/setup/pages')
+  }
+
+  return (
+    <div>
+      <StepIndicator steps={STEPS} currentStep="Token" />
+      <Card className="p-6 space-y-4">
+        <h2 className="text-[#F4E9DA] text-lg font-semibold">Notion Integration Token</h2>
+        <p className="text-[#9B8778] text-xs">
+          Paste your Notion integration token to connect Notra.
+        </p>
+        <div>
+          <input
+            type="password"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="ntn_..."
+            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+          />
+          <button
+            onClick={handleTest}
+            disabled={testing || !token.trim()}
+            className="mt-2 text-xs text-[#C99152] hover:text-[#A97845] disabled:text-[#9B8778]"
+          >
+            {testing ? 'Testing...' : 'Test Connection'}
+          </button>
+          {testResult !== 'idle' && (
+            <p className={`text-xs mt-1 ${testResult === 'success' ? 'text-[#8CA37D]' : 'text-[#C7745A]'}`}>
+              {testMessage}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleContinue}
+          disabled={!token.trim()}
+          className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Continue
+        </button>
+      </Card>
+    </div>
+  )
+}
