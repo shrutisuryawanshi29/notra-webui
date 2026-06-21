@@ -19,6 +19,9 @@ export interface ColumnMapping {
   categoryRelationDataSourceId: string | null
   dateColumn: string | null
   expenseAppMetadataProperty: string | null
+  monthClassificationColumn: string | null
+  monthClassificationType: string | null
+  monthClassificationRelationDataSourceId: string | null
 }
 
 export interface CategoryValue {
@@ -95,6 +98,7 @@ export const COMPATIBLE_TYPES: Record<string, string[]> = {
   date: ['date'],
   category: ['select', 'multi_select', 'relation', 'rich_text', 'status'],
   appMetadata: ['rich_text', 'text'],
+  monthClassification: ['relation', 'select', 'multi_select'],
 }
 
 export function autoSuggestMapping(properties: Record<string, DatabaseProperty>): ColumnMapping {
@@ -105,6 +109,9 @@ export function autoSuggestMapping(properties: Record<string, DatabaseProperty>)
     categoryRelationDataSourceId: null,
     dateColumn: null,
     expenseAppMetadataProperty: null,
+    monthClassificationColumn: null,
+    monthClassificationType: null,
+    monthClassificationRelationDataSourceId: null,
   }
 
   for (const [colName, prop] of Object.entries(properties)) {
@@ -150,6 +157,18 @@ export function autoSuggestMapping(properties: Record<string, DatabaseProperty>)
       const candidates = ['split details', 'app metadata', 'metadata', 'notra metadata', 'split metadata', 'app data', 'notra data']
       if (candidates.includes(lowerName)) {
         mapping.expenseAppMetadataProperty = colName
+      }
+    }
+
+    if (!mapping.monthClassificationColumn) {
+      const isMonthClass = lowerName.includes('month classification')
+      const isMonthRelation = prop.type === 'relation' && lowerName.includes('month')
+      if (isMonthClass || isMonthRelation) {
+        mapping.monthClassificationColumn = colName
+        mapping.monthClassificationType = prop.type
+        if (prop.type === 'relation') {
+          mapping.monthClassificationRelationDataSourceId = prop.relationDataSourceId || null
+        }
       }
     }
   }

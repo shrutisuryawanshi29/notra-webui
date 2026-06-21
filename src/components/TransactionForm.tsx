@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { NormalizedTransaction, SplitPerson } from '@/types/transaction'
 import { loadConfig, getExpenseConfig, getIncomeConfig, getExpenseMapping, getIncomeMapping } from '@/lib/config'
-import { stablePersonId } from '@/lib/notion-properties'
+import { stablePersonId, safeExtractText } from '@/lib/notion-properties'
 import {
   calculateSplit,
   inferMethodFromType,
@@ -26,6 +26,11 @@ interface SplitCalcState {
   participants: Array<{ id: string; name: string; owes: number }>
 }
 
+interface FieldOption {
+  name: string
+  id?: string
+}
+
 export default function TransactionForm({ existing }: TransactionFormProps) {
   const router = useRouter()
   const isEdit = !!existing
@@ -42,6 +47,20 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
   const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0])
   const [category, setCategory] = useState(existing?.category || '')
 
+  const [categoryOptions, setCategoryOptions] = useState<FieldOption[]>([])
+  const [categoryOptionsLoading, setCategoryOptionsLoading] = useState(false)
+  const [categoryOptionsError, setCategoryOptionsError] = useState<string | null>(null)
+  const [categoryOption, setCategoryOption] = useState<FieldOption | null>(null)
+
+  const [monthClassificationOptions, setMonthClassificationOptions] = useState<FieldOption[]>([])
+  const [monthClassificationLoading, setMonthClassificationLoading] = useState(false)
+  const [monthClassificationValue, setMonthClassificationValue] = useState<FieldOption | null>(null)
+  const [monthClassificationOptionsError, setMonthClassificationOptionsError] = useState<string | null>(null)
+  const [monthClassificationActiveColumn, setMonthClassificationActiveColumn] = useState<string | null>(null)
+
+  const categoryLoadRef = useRef(0)
+  const monthClassificationLoadRef = useRef(0)
+
   const [isSplit, setIsSplit] = useState(!!existing?.splitMetadata?.split.enabled)
   const [people, setPeople] = useState<SplitPerson[]>(() => {
     if (existing?.splitMetadata?.split.enabled) {
@@ -56,12 +75,15 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
 
   const [splitMethod, setSplitMethod] = useState<SplitMethodType>(() => {
     if (existing?.splitMetadata?.split.enabled) {
+      console.log(`[SplitEditPrefill] parsed=true type=${existing.splitMetadata.split.type} mappedMethod=${inferMethodFromType(existing.splitMetadata.split.type || '')} paidAmount=${existing.splitMetadata.split.paidAmount} inputs=${JSON.stringify(existing.splitMetadata.split.inputs || {})} selectedPersonIds=${JSON.stringify((existing.splitMetadata.split.participants || []).map(p => p.id))} myShare=${existing.splitMetadata.split.myShare} theyOwe=${existing.splitMetadata.split.theyOwe}`)
       return inferMethodFromType(existing.splitMetadata.split.type)
     }
     return 'equal'
   })
 
-  const [percentMode, setPercentMode] = useState<'myPercent' | 'theirPercent'>('myPercent')
+  const [percentMode, setPercentMode] = useState<'myPercent' | 'theirPercent'>(
+    () => (existing?.splitMetadata?.split.inputs?.entryMode as 'myPercent' | 'theirPercent') || 'myPercent'
+  )
   const [myPercent, setMyPercent] = useState(() => {
     const inp = existing?.splitMetadata?.split.inputs
     return inp && typeof inp.myPercent === 'number' ? String(inp.myPercent) : ''
@@ -129,6 +151,299 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
 
   const notionAmount = isSplit ? splitResult.myShare : paidAmount
 
+  async function fetchSchema(databaseId: string) {
+    const config = loadConfig()
+    const res = await fetch(`/api/notion/databases/${databaseId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: config?.notionToken }),
+    })
+    if (!res.ok) throw new Error(`Failed to fetch schema: ${res.statusText}`)
+    const data = await res.json()
+    return data.database
+  }
+
+  function extractTitle(page: Record<string, unknown>): string {
+    if (!page?.properties) return 'Untitled'
+    const props = page.properties as Record<string, Record<string, unknown>>
+    const titleProp = Object.values(props).find(v => (v as Record<string, unknown>).type === 'title')
+    return safeExtractText((titleProp as Record<string, unknown>)?.title).trim() || 'Untitled'
+  }
+
+  async function loadSelectOptions(databaseId: string, columnName: string): Promise<{options: FieldOption[]; error?: string}> {
+    const schema = await fetchSchema(databaseId)
+    const props = schema.properties || {}
+    const entries = Object.values(props) as Record<string, unknown>[]
+    const prop = entries.find(p => p.name === columnName) as Record<string, unknown> | undefined
+    if (!prop) return { options: [], error: `Column "${columnName}" not found in schema` }
+    const typeKey = prop.type === 'multi_select' ? 'multi_select' : 'select'
+    const options = (prop[typeKey] as Record<string, unknown>)?.options as Array<Record<string, unknown>> | undefined
+    if (!options) return { options: [], error: `No options for ${String(prop.type)} "${columnName}"` }
+    return { options: options.map(o => ({ name: String(o.name), id: o.id ? String(o.id) : undefined })) }
+  }
+
+  async function loadRelationOptions(dataSourceId?: string): Promise<{options: FieldOption[]; error?: string}> {
+    if (!dataSourceId) return { options: [], error: 'No relation data source ID' }
+
+    const config = loadConfig()
+    const token = config?.notionToken
+
+    console.log(`[CategoryDropdown] querying data-source ${dataSourceId}`)
+    try {
+      const res = await fetch('/api/notion/data-sources/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, dataSourceId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const results = (data.results || []) as Record<string, unknown>[]
+        return { options: results.map(r => ({ name: extractTitle(r), id: String(r.id) })) }
+      }
+    } catch (e) {
+      console.warn('[CategoryDropdown] data-sources/query failed, trying databases/query:', e)
+    }
+
+    try {
+      const res = await fetch('/api/notion/databases/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, databaseId: dataSourceId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const results = (data.results || []) as Record<string, unknown>[]
+        return { options: results.map(r => ({ name: extractTitle(r), id: String(r.id) })) }
+      }
+    } catch (e) {
+      console.warn('[CategoryDropdown] databases/query fallback also failed:', e)
+    }
+
+    return { options: [], error: 'Failed to load relation options' }
+  }
+
+  async function loadCategoryOptions(role: 'expense' | 'income') {
+    const loadId = ++categoryLoadRef.current
+    setCategoryOptionsLoading(true)
+    setCategoryOptionsError(null)
+    setCategoryOption(null)
+    setCategory('')
+
+    try {
+      const config = loadConfig()
+      if (!config) { if (loadId === categoryLoadRef.current) setCategoryOptionsLoading(false); return }
+
+      const mapping = role === 'expense' ? getExpenseMapping(config) : getIncomeMapping(config)
+      const cm = mapping?.columnMapping
+      const columnName = cm?.categoryColumn
+      const type = mapping?.categoryType
+      const relationDSId = cm?.categoryRelationDataSourceId
+      const dbId = role === 'expense' ? getExpenseConfig(config).databaseId : getIncomeConfig(config).databaseId
+
+      console.log(`[CategoryDropdown] Mapped column: "${columnName}", type: "${type}", relationDSId: "${relationDSId}"`)
+
+      if (!columnName || !type) {
+        console.log('[CategoryDropdown] No category column mapping')
+        if (loadId === categoryLoadRef.current) {
+          setCategoryOptions([])
+          setCategoryOptionsLoading(false)
+        }
+        return
+      }
+
+      console.log(`[CategoryDropdown] Loading ${type} options...`)
+
+      let loaded: FieldOption[] = []
+      let loadError: string | undefined
+
+      if (type === 'relation') {
+        const { options, error } = await loadRelationOptions(relationDSId || undefined)
+        loadError = error
+        loaded = options
+      } else if (type === 'select' || type === 'multi_select') {
+        const { options, error } = await loadSelectOptions(dbId, columnName)
+        loadError = error
+        loaded = options
+      }
+
+      if (loadId !== categoryLoadRef.current) return
+
+      if (loadError) {
+        console.log(`[CategoryDropdown] Error: ${loadError}`)
+        setCategoryOptionsError(loadError)
+      } else {
+        console.log(`[CategoryDropdown] Loaded ${loaded.length} options`)
+        setCategoryOptions(loaded)
+        if (existing && existing.category) {
+          const matched = loaded.find(o => o.name === existing.category)
+          if (matched) {
+            setCategoryOption(matched)
+            setCategory(matched.name)
+          }
+        }
+      }
+    } catch (e) {
+      if (loadId !== categoryLoadRef.current) return
+      const msg = e instanceof Error ? e.message : String(e)
+      console.log(`[CategoryDropdown] Error: ${msg}`)
+      setCategoryOptionsError(msg)
+    } finally {
+      if (loadId === categoryLoadRef.current) setCategoryOptionsLoading(false)
+    }
+  }
+
+  function autoSelectMonth(dateStr: string, options: FieldOption[]): FieldOption | null {
+    if (!dateStr || options.length === 0) return null
+
+    const d = new Date(dateStr + 'T12:00:00')
+    if (isNaN(d.getTime())) return null
+
+    const month = d.getMonth()
+    const year = d.getFullYear()
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    const shortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthName = monthNames[month]
+    const shortName = shortNames[month]
+    const yearStr = String(year)
+    const monthPadded = String(month + 1).padStart(2, '0')
+
+    const candidates = [
+      `${monthName} ${year}`,
+      `${shortName} ${year}`,
+      `${monthName}, ${year}`,
+      `${shortName}, ${year}`,
+      `${year}-${monthPadded}`,
+      `${monthPadded}-${year}`,
+      `${monthName} ${yearStr}`,
+      `${shortName} ${yearStr}`,
+      `${monthName.toUpperCase()} ${year}`,
+      `${shortName.toUpperCase()} ${year}`,
+      monthName,
+      shortName,
+      monthName.toUpperCase(),
+    ]
+
+    for (const candidate of candidates) {
+      const match = options.find(o => o.name.trim().toLowerCase() === candidate.trim().toLowerCase())
+      if (match) return match
+    }
+
+    for (const option of options) {
+      const title = option.name
+      if (title.toLowerCase().includes(monthName.toLowerCase()) && title.includes(yearStr)) {
+        return option
+      }
+      if (title.toLowerCase().includes(shortName.toLowerCase()) && title.includes(yearStr)) {
+        return option
+      }
+    }
+
+    return null
+  }
+
+  function getMonthClassificationColumn(schema: Record<string, unknown>): { columnName: string; fieldType: string; relationDSId: string | null } | null {
+    const props = Object.values((schema.properties || {})) as Record<string, unknown>[]
+    const mcProp = props.find(
+      p => String(p.name ?? '').toLowerCase().includes('month classification') && p.type === 'relation'
+    ) as Record<string, unknown> | undefined
+    if (!mcProp) return null
+    const relation = mcProp.relation as Record<string, unknown> | undefined
+    const dsId = (relation?.database_id ?? relation?.data_source_id) as string | null
+    return { columnName: String(mcProp.name), fieldType: 'relation', relationDSId: dsId }
+  }
+
+  async function loadMonthClassificationOptions(role: 'expense' | 'income') {
+    const loadId = ++monthClassificationLoadRef.current
+    setMonthClassificationLoading(true)
+    setMonthClassificationValue(null)
+    setMonthClassificationOptionsError(null)
+    setMonthClassificationOptions([])
+    setMonthClassificationActiveColumn(null)
+
+    try {
+      const config = loadConfig()
+      if (!config) { if (loadId === monthClassificationLoadRef.current) setMonthClassificationLoading(false); return }
+
+      const mapping = role === 'expense' ? getExpenseMapping(config) : getIncomeMapping(config)
+      const cm = mapping?.columnMapping
+
+      let columnName = cm?.monthClassificationColumn || null
+      let fieldType = cm?.monthClassificationType || null
+      let relationDSId = cm?.monthClassificationRelationDataSourceId || null
+
+      if (!columnName || !fieldType) {
+        const dbId = role === 'expense' ? getExpenseConfig(config).databaseId : getIncomeConfig(config).databaseId
+        if (dbId) {
+          const schema = await fetchSchema(dbId)
+          const detected = getMonthClassificationColumn(schema)
+          if (detected) {
+            columnName = detected.columnName
+            fieldType = detected.fieldType
+            relationDSId = detected.relationDSId
+            console.log(`[MonthClassification] Auto-detected: column=${columnName} type=${fieldType} dsId=${relationDSId}`)
+          }
+        }
+      }
+
+      if (!columnName || !fieldType) {
+        console.log('[MonthClassification] No month classification column')
+        if (loadId === monthClassificationLoadRef.current) {
+          setMonthClassificationLoading(false)
+        }
+        return
+      }
+
+      setMonthClassificationActiveColumn(columnName)
+
+      if (fieldType !== 'relation') {
+        console.log(`[MonthClassification] Unsupported type: ${fieldType} — only relation supported`)
+        if (loadId === monthClassificationLoadRef.current) {
+          setMonthClassificationLoading(false)
+        }
+        return
+      }
+
+      const { options, error } = await loadRelationOptions(relationDSId || undefined)
+
+      if (error) {
+        console.log(`[MonthClassification] Error: ${error}`)
+        if (loadId === monthClassificationLoadRef.current) {
+          setMonthClassificationOptionsError(error)
+          setMonthClassificationLoading(false)
+        }
+        return
+      }
+
+      if (loadId !== monthClassificationLoadRef.current) return
+      console.log(`[MonthClassification] Loaded ${options.length} options`)
+      setMonthClassificationOptions(options)
+
+      let preselected: FieldOption | null = null
+
+      if (existing && existing.rawProperties && columnName) {
+        const mcRawProp = (existing.rawProperties as Record<string, unknown>)[columnName] as Record<string, unknown> | undefined
+        const relationArr = mcRawProp?.relation as Array<{ id: string }> | undefined
+        const relationIds = relationArr?.map(r => r.id) || []
+        preselected = options.find(o => relationIds.includes(o.id || '')) || null
+      }
+
+      if (!preselected) {
+        preselected = autoSelectMonth(date, options)
+      }
+
+      if (loadId !== monthClassificationLoadRef.current) return
+      if (preselected) setMonthClassificationValue(preselected)
+    } catch (e) {
+      if (loadId !== monthClassificationLoadRef.current) return
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn('[MonthClassification] Failed to load:', msg)
+      setMonthClassificationOptionsError(msg)
+      setMonthClassificationOptions([])
+    } finally {
+      if (loadId === monthClassificationLoadRef.current) setMonthClassificationLoading(false)
+    }
+  }
+
   const addPerson = useCallback(() => {
     const name = newPersonName.trim()
     if (!name) return
@@ -141,6 +456,22 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
   const removePerson = useCallback((id: string) => {
     setPeople(prev => prev.filter(p => p.id !== id))
   }, [])
+
+  useEffect(() => {
+    loadCategoryOptions(role)
+    loadMonthClassificationOptions(role)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role])
+
+  useEffect(() => {
+    if (monthClassificationOptions.length > 0) {
+      const matched = autoSelectMonth(date, monthClassificationOptions)
+      if (matched && matched.id !== monthClassificationValue?.id) {
+        setMonthClassificationValue(matched)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, monthClassificationOptions])
 
   const handleSubmit = async () => {
     const config = loadConfig()
@@ -167,13 +498,28 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
 
       const mapping = role === 'expense' ? getExpenseMapping(config) : getIncomeMapping(config)
       const categoryType = mapping?.categoryType
+      const categoryId = categoryType === 'relation' ? categoryOption?.id : undefined
+      const categoryName = categoryOption?.name || category || null
+      console.log(`[CategoryDropdown] Selected: ${categoryName}, ID: ${categoryId}, type: ${categoryType}`)
+
+      const mcColumnName = monthClassificationActiveColumn || null
+      const mcFieldType = mcColumnName ? 'relation' : null
+      const mcId = monthClassificationValue?.id || undefined
+      console.log(`[MonthClassification] selected=${monthClassificationValue?.name} column=${mcColumnName}`)
+
       const properties = buildNotionProperties(config, role, {
         title: title || `${role === 'expense' ? 'Expense' : 'Income'} - ${date}`,
         amount: finalAmount,
         date,
-        category: category || null,
+        category: categoryName,
         splitMetadata,
-      }, categoryType)
+        monthClassification: {
+          columnName: mcColumnName,
+          fieldType: mcFieldType,
+          relationId: mcId,
+          name: null,
+        },
+      }, categoryType, categoryId)
 
       if (isEdit && existing) {
         const res = await fetch(`/api/notion/pages/${existing.id}`, {
@@ -303,14 +649,81 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
 
         <div>
           <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Category</label>
-          <input
-            type="text"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            placeholder="e.g. Food, Transport"
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
-          />
+          {categoryOptionsLoading ? (
+            <div className="w-full bg-[#40342B] text-[#9B8778] rounded-lg px-3 py-2.5 text-sm">
+              Loading categories...
+            </div>
+          ) : categoryOptionsError ? (
+            <div className="w-full bg-[#40342B] text-[#C7745A] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036]">
+              Failed to load: {categoryOptionsError}
+              <button onClick={() => loadCategoryOptions(role)} className="ml-2 underline text-[#C99152]">
+                Retry
+              </button>
+            </div>
+          ) : categoryOptions.length > 0 ? (
+            <select
+              value={categoryOption?.name || ''}
+              onChange={(e) => {
+                const selected = categoryOptions.find(o => o.name === e.target.value) || null
+                setCategoryOption(selected)
+                setCategory(selected?.name || e.target.value)
+              }}
+              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+            >
+              <option value="">Select a category</option>
+              {categoryOptions.map(opt => (
+                <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={categoryOption?.name || category}
+              onChange={e => {
+                setCategoryOption({ name: e.target.value })
+                setCategory(e.target.value)
+              }}
+              placeholder="e.g. Food, Transport"
+              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+            />
+          )}
         </div>
+
+        {monthClassificationOptionsError ? (
+          <div>
+            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
+            <div className="w-full bg-[#40342B] text-[#C7745A] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036]">
+              Failed to load: {monthClassificationOptionsError}
+              <button onClick={() => loadMonthClassificationOptions(role)} className="ml-2 underline text-[#C99152]">
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : monthClassificationLoading ? (
+          <div>
+            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
+            <div className="w-full bg-[#40342B] text-[#9B8778] rounded-lg px-3 py-2.5 text-sm">
+              Loading months...
+            </div>
+          </div>
+        ) : monthClassificationOptions.length > 0 ? (
+          <div>
+            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
+            <select
+              value={monthClassificationValue?.name || ''}
+              onChange={(e) => {
+                const selected = monthClassificationOptions.find(o => o.name === e.target.value) || null
+                setMonthClassificationValue(selected)
+              }}
+              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+            >
+              <option value="">Select a month</option>
+              {monthClassificationOptions.map(opt => (
+                <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {role === 'expense' && (
           <>

@@ -74,6 +74,9 @@ export function getExpenseConfig(config: NotraConfig) {
     dateColumn: cm?.dateColumn || '',
     categoryColumn: cm?.categoryColumn || '',
     metadataColumn: cm?.expenseAppMetadataProperty || '',
+    monthClassificationColumn: cm?.monthClassificationColumn || '',
+    monthClassificationType: cm?.monthClassificationType || '',
+    monthClassificationRelationDataSourceId: cm?.monthClassificationRelationDataSourceId || '',
   }
 }
 
@@ -87,5 +90,8 @@ export function getIncomeConfig(config: NotraConfig) {
     dateColumn: cm?.dateColumn || '',
     categoryColumn: cm?.categoryColumn || '',
     metadataColumn: '',
+    monthClassificationColumn: cm?.monthClassificationColumn || '',
+    monthClassificationType: cm?.monthClassificationType || '',
+    monthClassificationRelationDataSourceId: cm?.monthClassificationRelationDataSourceId || '',
   }
 }

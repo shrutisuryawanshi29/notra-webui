@@ -170,18 +170,22 @@ export function calculateSplit(
 
 export function inferMethodFromType(type: string): SplitMethodType {
   switch (type) {
+    case 'equal':
     case 'manualEqual':
     case 'splitEqually':
       return 'equal'
-    case 'manualPercent':
     case 'percent':
+    case 'manualPercent':
       return 'percent'
+    case 'exact':
     case 'manualCustom':
     case 'exactAmounts':
+    case 'Custom Amount':
       return 'exact'
-    case 'manualHHS':
-    case 'adjust':
     case 'hhs':
+    case 'adjust':
+    case 'manualHHS':
+    case 'shares':
       return 'hhs'
     default:
       return 'equal'
@@ -195,6 +199,7 @@ export function legacyTypeToMethod(type: string): string {
     case 'Split Equally':
     case 'manualEqual':
     case 'splitEqually':
+    case 'equal':
       return 'manualEqual'
     case 'manualPercent':
     case 'percent':
@@ -202,6 +207,7 @@ export function legacyTypeToMethod(type: string): string {
     case 'manualCustom':
     case 'exactAmounts':
     case 'Custom Amount':
+    case 'exact':
       return 'manualCustom'
     case 'manualHHS':
     case 'adjust':

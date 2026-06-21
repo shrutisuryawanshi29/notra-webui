@@ -35,6 +35,7 @@ const FIELDS: MappingFieldConfig[] = [
   { key: 'amountColumn', label: 'Amount', iconName: 'dollarsign.circle', iconColor: '#C7745A', compatibleTypes: COMPATIBLE_TYPES.amount },
   { key: 'categoryColumn', label: 'Category', iconName: 'tag', iconColor: '#A88B73', compatibleTypes: COMPATIBLE_TYPES.category },
   { key: 'dateColumn', label: 'Date', iconName: 'calendar', iconColor: '#8CA37D', compatibleTypes: COMPATIBLE_TYPES.date },
+  { key: 'monthClassificationColumn', label: 'Month Classification', iconName: 'calendar.clock', iconColor: '#6B9B8B', compatibleTypes: COMPATIBLE_TYPES.monthClassification, showInfo: false },
   { key: 'expenseAppMetadataProperty', label: 'Split Details', iconName: 'square.and.pencil', iconColor: '#9B8778', compatibleTypes: COMPATIBLE_TYPES.appMetadata, showInfo: true },
 ]
 
@@ -43,6 +44,7 @@ const FIELD_ICONS: Record<string, string> = {
   'dollarsign.circle': 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v12M9 9c0-1.1.9-2 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2',
   'tag': 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01',
   'calendar': 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18',
+  'calendar.clock': 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2',
   'square.and.pencil': 'M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z',
 }
 
@@ -96,6 +98,12 @@ export default function MappingDetailPage() {
       const next = { ...prev, [field]: value }
       if (field === 'categoryColumn' && value && database?.properties[value]?.type === 'relation') {
         next.categoryRelationDataSourceId = database.properties[value].relationDataSourceId || null
+      }
+      if (field === 'monthClassificationColumn' && value && database?.properties[value]) {
+        next.monthClassificationType = database.properties[value].type || null
+        if (database.properties[value].type === 'relation') {
+          next.monthClassificationRelationDataSourceId = database.properties[value].relationDataSourceId || null
+        }
       }
       return next
     })

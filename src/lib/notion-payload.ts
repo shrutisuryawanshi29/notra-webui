@@ -14,8 +14,15 @@ export function buildNotionProperties(
     date: string
     category: string | null
     splitMetadata?: SplitMetadata | null
+    monthClassification?: {
+      columnName: string | null
+      fieldType: string | null
+      relationId: string | undefined
+      name: string | null
+    } | null
   },
-  categoryType?: string | null
+  categoryType?: string | null,
+  categoryId?: string
 ): NotionPageProperties {
   const isExpense = role === 'expense'
   const cfg = isExpense ? getExpenseConfig(config) : getIncomeConfig(config)
@@ -51,7 +58,12 @@ export function buildNotionProperties(
         multi_select: [{ name: data.category }],
       }
     } else if (categoryType === 'relation') {
-      console.warn('[buildNotionProperties] Cannot write relation category from name alone:', data.category)
+      if (categoryId) {
+        properties[catCol] = { relation: [{ id: categoryId }] }
+        console.log('[buildNotionProperties] Writing relation:', JSON.stringify(properties[catCol]))
+      } else {
+        properties[catCol] = { relation: [] }
+      }
     } else if (categoryType === 'rich_text') {
       properties[catCol] = {
         rich_text: [{ text: { content: data.category } }],
@@ -60,6 +72,18 @@ export function buildNotionProperties(
       properties[catCol] = {
         select: { name: data.category },
       }
+    }
+  }
+
+  if (data.monthClassification?.columnName && data.monthClassification?.fieldType) {
+    const mcCol = data.monthClassification.columnName
+    const mcType = data.monthClassification.fieldType
+    if (mcType === 'relation' && data.monthClassification.relationId) {
+      properties[mcCol] = { relation: [{ id: data.monthClassification.relationId }] }
+    } else if (mcType === 'multi_select' && data.monthClassification.name) {
+      properties[mcCol] = { multi_select: [{ name: data.monthClassification.name }] }
+    } else if (mcType === 'select' && data.monthClassification.name) {
+      properties[mcCol] = { select: { name: data.monthClassification.name } }
     }
   }
 
