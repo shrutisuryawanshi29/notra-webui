@@ -3,10 +3,14 @@ const NOTION_BASE = 'https://api.notion.com/v1'
 
 const envToken = () => process.env.NOTION_TOKEN
 
+export function sanitizeToken(t: string): string {
+  return t.replace(/[^\x20-\x7E]/g, '').trim()
+}
+
 export function getToken(token?: string): string {
   const serverToken = envToken()
-  if (serverToken) return serverToken
-  if (token) return token
+  if (serverToken) return sanitizeToken(serverToken)
+  if (token) return sanitizeToken(token)
   throw new Error('Notion token not provided and NOTION_TOKEN env var is not set')
 }
 
@@ -73,6 +77,34 @@ export function createNotionClient(token: string) {
           has_more: boolean
           next_cursor: string | null
         }>('POST', `/databases/${databaseId}/query`, body)
+
+        allResults.push(...result.results)
+        hasMore = result.has_more
+        cursor = result.next_cursor
+      }
+
+      return allResults
+    },
+
+    getDataSource: (id: string) =>
+      request<{ id: string; database_id?: string; type?: string; name?: string }>(
+        'GET', `/data_sources/${id}`
+      ),
+
+    queryDataSource: async (dataSourceId: string) => {
+      const allResults: unknown[] = []
+      let cursor: string | null = null
+      let hasMore = true
+
+      while (hasMore) {
+        const body: Record<string, unknown> = { page_size: 100 }
+        if (cursor) body.start_cursor = cursor
+
+        const result = await request<{
+          results: unknown[]
+          has_more: boolean
+          next_cursor: string | null
+        }>('POST', `/data_sources/${dataSourceId}/query`, body)
 
         allResults.push(...result.results)
         hasMore = result.has_more

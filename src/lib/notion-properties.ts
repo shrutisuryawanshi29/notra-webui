@@ -7,10 +7,27 @@ import {
   SplitItem,
 } from '@/types/transaction'
 
+export function safeExtractText(
+  value: unknown,
+  fallback = ''
+): string {
+  if (value == null) return fallback
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const texts = value.map(item => {
+      if (typeof item === 'string') return item
+      if (item && typeof item === 'object' && 'plain_text' in item) return String(item.plain_text ?? '')
+      return ''
+    })
+    return texts.join('') || fallback
+  }
+  return fallback
+}
+
 export function extractPropertyValue(prop: NotionPropertyValue): string | number | boolean | null {
   switch (prop.type) {
     case 'title':
-      return prop.title.map(t => t.plain_text).join('')
+      return safeExtractText(prop.title) || null
     case 'rich_text':
       return prop.rich_text.map(t => t.plain_text).join('')
     case 'number':
@@ -44,6 +61,15 @@ export function extractCategoryName(
 ): string | null {
   if (!prop) return null
 
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Category] prop type:', prop?.type, 'value:',
+      prop?.type === 'select' ? prop?.select?.name :
+      prop?.type === 'relation' ? prop?.relation?.map(r => r.id).join(',') :
+      prop?.type === 'multi_select' ? prop?.multi_select?.map(s => s.name).join(',') :
+      '(other)'
+    )
+  }
+
   if (prop.type === 'select') {
     return prop.select?.name ?? null
   }
@@ -53,7 +79,7 @@ export function extractCategoryName(
   }
 
   if (prop.type === 'title') {
-    return prop.title.map(t => t.plain_text).join('').trim() || null
+    return safeExtractText(prop.title).trim() || null
   }
 
   if (prop.type === 'rich_text') {
@@ -81,9 +107,11 @@ export function extractCategoryName(
   }
 
   if (prop.type === 'relation' && relationLookup) {
-    const names = prop.relation
-      .map(r => relationLookup[r.id])
-      .filter((n): n is string => !!n)
+    const ids = prop.relation.map(r => r.id)
+    const names = ids.map(id => relationLookup[id]).filter((n): n is string => !!n)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Category] relation ids:', ids, 'resolved names:', names, 'lookup keys:', Object.keys(relationLookup).slice(0, 3))
+    }
     return names.length > 0 ? names.join(', ') : null
   }
 

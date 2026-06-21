@@ -6,6 +6,7 @@ import { loadSetupState, saveSetupState, SetupState } from '@/lib/setup-state'
 import { isSetupComplete } from '@/lib/config'
 import Card from '@/components/Card'
 import StepIndicator from '@/components/setup/StepIndicator'
+import { safeExtractText } from '@/lib/notion-properties'
 
 const STEPS = ['Token', 'Pages', 'Roles', 'Mapping']
 
@@ -44,6 +45,10 @@ export default function PagesStep() {
           }),
         })
         const data = await res.json()
+        if (data.error) {
+          setError(data.error)
+          return
+        }
         const allPages = (data.results || []) as Array<Record<string, unknown>>
         const workspacePages = allPages.filter(p => {
           const parent = p.parent as Record<string, unknown> | undefined
@@ -56,6 +61,9 @@ export default function PagesStep() {
             icon: extractPageIcon(p),
           }))
           .sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()))
+        if (results.length === 0) {
+          setError('No pages found. Make sure your Notion integration is connected to at least one page.')
+        }
         setPages(results)
       } catch {
         setError('Failed to load pages')
@@ -135,9 +143,7 @@ function extractPageTitle(page: Record<string, unknown>): string {
     (v: unknown) => (v as Record<string, unknown>).type === 'title'
   ) as Record<string, unknown> | undefined
   if (!titleProp) return 'Untitled'
-  const title = titleProp.title as Array<{ plain_text: string }> | undefined
-  if (!title) return 'Untitled'
-  return title.map(t => t.plain_text).join('') || 'Untitled'
+  return safeExtractText(titleProp.title) || 'Untitled'
 }
 
 function extractPageIcon(page: Record<string, unknown>): string {

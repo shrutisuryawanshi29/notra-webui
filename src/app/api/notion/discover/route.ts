@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createNotionClient, getToken, NotionApiError } from '@/lib/notion-client'
+import { safeExtractText } from '@/lib/notion-properties'
 
 interface DiscoveredDbEntry {
   id: string
@@ -204,10 +205,13 @@ export async function POST(request: NextRequest) {
         notionErrorBody: error instanceof NotionApiError ? error.body : undefined,
       })
 
+      const userMsg = statusCode
+        ? `Notion API returned ${statusCode}: ${msg}`
+        : `API request failed: ${msg}`
       return NextResponse.json({
         databases: [],
         logs,
-        error: `Notion API returned ${statusCode || 500}. Please ensure your Notion integration has been shared with your databases.`,
+        error: `${userMsg}. Please ensure your Notion integration is connected to the parent page and your databases.`,
       })
     }
   } catch (error) {
@@ -236,7 +240,7 @@ async function fetchSchemas(
   for (const id of dbIds) {
     try {
       const schema = await client.getDatabase(id)
-      const title = schema.title?.map(t => t.plain_text).join('') || 'Untitled'
+      const title = safeExtractText(schema.title) || 'Untitled'
       const properties: DiscoveredDbEntry['properties'] = {}
 
       for (const [propName, propValue] of Object.entries(schema.properties)) {
@@ -244,8 +248,9 @@ async function fetchSchemas(
         let relationDataSourceId: string | undefined
 
         if (prop.type === 'relation' && prop.relation) {
-          // iOS reads data_source_id first, then falls back to database_id
-          relationDataSourceId = prop.relation.data_source_id || prop.relation.database_id
+          // Prefer database_id (works with databases query API).
+          // Fall back to data_source_id for connected-database relations.
+          relationDataSourceId = prop.relation.database_id || prop.relation.data_source_id
         }
 
         properties[propName] = {
@@ -282,14 +287,15 @@ async function fetchSchemas(
 }
 
 function extractDbTitle(db: Record<string, unknown>): string {
-  const titleArr = db.title as Array<{ plain_text: string }> | undefined
-  if (titleArr && titleArr.length > 0) return titleArr.map(t => t.plain_text).join('')
+  const title = safeExtractText(db.title)
+  if (title) return title
   const props = db.properties as Record<string, unknown> | undefined
   if (props) {
     for (const val of Object.values(props)) {
-      const v = val as { type?: string; title?: Array<{ plain_text: string }> }
-      if (v.type === 'title' && v.title) {
-        return v.title.map(t => t.plain_text).join('')
+      const v = val as { type?: string; title?: unknown }
+      if (v.type === 'title') {
+        const t = safeExtractText(v.title)
+        if (t) return t
       }
     }
   }

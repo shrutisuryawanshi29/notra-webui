@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { isSetupComplete, loadConfig, getExpenseConfig, getIncomeConfig } from '@/lib/config'
+import { isSetupComplete, loadConfig, getExpenseConfig, getIncomeConfig, getExpenseMapping, getIncomeMapping } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
+import { safeExtractText } from '@/lib/notion-properties'
 import { NormalizedTransaction } from '@/types/transaction'
 import TransactionForm from '@/components/TransactionForm'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -38,6 +39,61 @@ export default function EditPage() {
       if (!config) return
       const expenseCfg = getExpenseConfig(config)
       const incomeCfg = getIncomeConfig(config)
+      const expenseMapping = getExpenseMapping(config)
+      const incomeMapping = getIncomeMapping(config)
+
+      // Build relation lookups — try databases API first, then data sources API
+      const buildRelationLookup = async (token: string, relationDbId: string): Promise<Record<string, string> | undefined> => {
+        const extractLookup = (rows: Array<Record<string, unknown>>): Record<string, string> => {
+          const lookup: Record<string, string> = {}
+          for (const row of rows) {
+            const props = (row.properties || {}) as Record<string, unknown>
+            const titleProp = Object.values(props).find(
+              (v: unknown) => (v as Record<string, unknown>).type === 'title'
+            ) as Record<string, unknown> | undefined
+            const name = safeExtractText(titleProp?.title).trim()
+            if (name) lookup[row.id as string] = name
+          }
+          return lookup
+        }
+
+        try {
+          const dbRes = await fetch('/api/notion/databases/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, databaseId: relationDbId }),
+          })
+          if (dbRes.ok) {
+            const data = await dbRes.json()
+            const lookup = extractLookup(data.results || [])
+            if (Object.keys(lookup).length > 0) return lookup
+          }
+        } catch { /* fall through */ }
+
+        try {
+          const dsRes = await fetch('/api/notion/data-sources/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, dataSourceId: relationDbId }),
+          })
+          if (dsRes.ok) {
+            const data = await dsRes.json()
+            const lookup = extractLookup(data.results || [])
+            if (Object.keys(lookup).length > 0) return lookup
+          }
+        } catch { /* fall through */ }
+        return undefined
+      }
+
+      const expenseRelationDbId = expenseMapping?.columnMapping?.categoryRelationDataSourceId
+      const incomeRelationDbId = incomeMapping?.columnMapping?.categoryRelationDataSourceId
+
+      const expenseRelationLookup = expenseRelationDbId
+        ? await buildRelationLookup(config.notionToken, expenseRelationDbId)
+        : undefined
+      const incomeRelationLookup = incomeRelationDbId
+        ? await buildRelationLookup(config.notionToken, incomeRelationDbId)
+        : undefined
 
       try {
         const expenseRes = await fetch(`/api/notion/databases/query`, {
@@ -58,7 +114,8 @@ export default function EditPage() {
                 dateColumn: expenseCfg.dateColumn,
                 categoryColumn: expenseCfg.categoryColumn || null,
                 metadataColumn: expenseCfg.metadataColumn || null,
-              }
+              },
+              expenseRelationLookup
             )
             setTransaction(txn)
             setLoading(false)
@@ -81,7 +138,8 @@ export default function EditPage() {
                 dateColumn: incomeCfg.dateColumn,
                 categoryColumn: incomeCfg.categoryColumn || null,
                 metadataColumn: null,
-              }
+              },
+              incomeRelationLookup
             )
             setTransaction(txn)
             setLoading(false)

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { NormalizedTransaction, SplitPerson } from '@/types/transaction'
-import { loadConfig, getExpenseConfig, getIncomeConfig } from '@/lib/config'
+import { loadConfig, getExpenseConfig, getIncomeConfig, getExpenseMapping, getIncomeMapping } from '@/lib/config'
 import { stablePersonId } from '@/lib/notion-properties'
 import {
   calculateSplit,
@@ -165,13 +165,15 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
         finalAmount = splitResult.myShare
       }
 
+      const mapping = role === 'expense' ? getExpenseMapping(config) : getIncomeMapping(config)
+      const categoryType = mapping?.categoryType
       const properties = buildNotionProperties(config, role, {
         title: title || `${role === 'expense' ? 'Expense' : 'Income'} - ${date}`,
         amount: finalAmount,
         date,
         category: category || null,
         splitMetadata,
-      })
+      }, categoryType)
 
       if (isEdit && existing) {
         const res = await fetch(`/api/notion/pages/${existing.id}`, {

@@ -28,7 +28,8 @@ export default function TokenStep() {
   }, [router])
 
   const handleTest = async () => {
-    if (!token.trim()) return
+    const cleaned = token.replace(/[^\x20-\x7E]/g, '').trim()
+    if (!cleaned) return
     setTesting(true)
     setTestResult('idle')
     setTestMessage('')
@@ -36,7 +37,7 @@ export default function TokenStep() {
       const res = await fetch('/api/notion/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify({ token: cleaned }),
       })
       const data = await res.json()
       if (data.valid) {
@@ -55,6 +56,17 @@ export default function TokenStep() {
   }
 
   const handleContinue = () => {
+    const cleaned = token.replace(/[^\x20-\x7E]/g, '').trim()
+    if (cleaned.length !== token.trim().length) {
+      setTestResult('error')
+      setTestMessage('Token contained invisible characters and was cleaned. Please re-paste your token to avoid issues.')
+      return
+    }
+    if (!cleaned.startsWith('ntn_') && !cleaned.startsWith('secret_')) {
+      setTestResult('error')
+      setTestMessage('Token should start with "ntn_" or "secret_". Please check your token.')
+      return
+    }
     const existing = loadSetupState() || {
       notionToken: '',
       selectedPageId: null,
@@ -62,7 +74,7 @@ export default function TokenStep() {
       discoveredDatabases: [],
       databaseMappings: {},
     }
-    existing.notionToken = token.trim()
+    existing.notionToken = cleaned
     saveSetupState(existing)
     router.push('/setup/pages')
   }

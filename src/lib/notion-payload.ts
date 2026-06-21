@@ -14,7 +14,8 @@ export function buildNotionProperties(
     date: string
     category: string | null
     splitMetadata?: SplitMetadata | null
-  }
+  },
+  categoryType?: string | null
 ): NotionPageProperties {
   const isExpense = role === 'expense'
   const cfg = isExpense ? getExpenseConfig(config) : getIncomeConfig(config)
@@ -45,8 +46,20 @@ export function buildNotionProperties(
   }
 
   if (catCol && data.category && data.category.trim()) {
-    properties[catCol] = {
-      select: { name: data.category },
+    if (categoryType === 'multi_select') {
+      properties[catCol] = {
+        multi_select: [{ name: data.category }],
+      }
+    } else if (categoryType === 'relation') {
+      console.warn('[buildNotionProperties] Cannot write relation category from name alone:', data.category)
+    } else if (categoryType === 'rich_text') {
+      properties[catCol] = {
+        rich_text: [{ text: { content: data.category } }],
+      }
+    } else {
+      properties[catCol] = {
+        select: { name: data.category },
+      }
     }
   }
 
