@@ -39,6 +39,11 @@ export function createNotionClient(token: string) {
         'POST', '/search', params
       ),
 
+    getBlockChildren: (blockId: string, startCursor?: string) =>
+      request<{ results: unknown[]; has_more: boolean; next_cursor: string | null }>(
+        'GET', `/blocks/${blockId}/children?page_size=100${startCursor ? `&start_cursor=${startCursor}` : ''}`
+      ),
+
     getDatabase: (id: string) =>
       request<{
         id: string

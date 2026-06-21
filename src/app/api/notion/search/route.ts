@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createNotionClient, getToken } from '@/lib/notion-client'
+import { createNotionClient, getToken, NotionApiError } from '@/lib/notion-client'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,9 +17,19 @@ export async function POST(request: NextRequest) {
     if (searchParams.start_cursor) params.start_cursor = searchParams.start_cursor
 
     const result = await client.search(params)
+    const count = (result.results || []).length
+    console.log(`[Notion Search] OK: ${count} results`)
 
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof NotionApiError) {
+      console.error(`[Notion Search] Error ${error.status}: ${error.message}`, error.body)
+      return NextResponse.json(
+        { error: error.message, status: error.status, body: error.body },
+        { status: error.status }
+      )
+    }
+    console.error('[Notion Search] Unexpected error:', error)
     return NextResponse.json(
       { error: 'Failed to search' },
       { status: 500 }

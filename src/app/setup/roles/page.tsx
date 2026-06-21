@@ -23,6 +23,7 @@ export default function RolesStep() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [permissionInfo, setPermissionInfo] = useState('')
 
   useEffect(() => {
     if (isSetupComplete()) {
@@ -41,42 +42,44 @@ export default function RolesStep() {
     ;(async () => {
       setLoading(true)
       try {
-        const searchRes = await fetch('/api/notion/search', {
+        const res = await fetch('/api/notion/discover', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             token: s.notionToken,
-            filter: { value: 'database', property: 'object' },
+            pageId: s.selectedPageId,
           }),
         })
-        const searchData = await searchRes.json()
-        const allDbs = (searchData.results || []) as Array<Record<string, unknown>>
+        const data = await res.json()
+        const dbs = (data.databases || []) as DatabaseEntry[]
 
-        const entries: DatabaseEntry[] = []
-        for (const db of allDbs) {
-          const id = db.id as string
-          const title = extractDbTitle(db)
-
-          const schemaRes = await fetch(`/api/notion/databases/${id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: s.notionToken }),
-          })
-          const schemaData = await schemaRes.json()
-          const schemaProps = schemaData.database?.properties || {}
-          const properties: DatabaseEntry['properties'] = {}
-          for (const [propName, propValue] of Object.entries(schemaProps as Record<string, unknown>)) {
-            const p = propValue as { type: string; relation?: { database_id?: string } }
-            const relationDataSourceId = p.type === 'relation' ? p.relation?.database_id : undefined
-            properties[propName] = { name: propName, type: p.type, relationDataSourceId }
+        if (data.error) {
+          setError(data.error)
+          if (dbs.length === 0) {
+            setPermissionInfo(
+              'Make sure your Notion integration is connected to:\n' +
+              '• The selected parent page\n' +
+              '• Your Expense database\n' +
+              '• Your Income database\n' +
+              '• Related category/month databases (if used)'
+            )
           }
-
-          entries.push({ id, title, role: 'ignore', properties })
         }
 
-        setDatabases(entries)
+        if (dbs.length === 0 && !data.error) {
+          setError('No databases found under selected page')
+          setPermissionInfo(
+            'Make sure your Notion page contains databases, and your Notion ' +
+            'integration has been granted access to them.'
+          )
+        }
+
+        setDatabases(dbs.map(db => ({
+          ...db,
+          role: 'ignore' as DatabaseRole,
+        })))
       } catch {
-        setError('Failed to load databases')
+        setError('Failed to load databases. Please check your connection and try again.')
       } finally {
         setLoading(false)
       }
@@ -147,7 +150,15 @@ export default function RolesStep() {
           </div>
         )}
 
-        {error && <p className="text-[#C7745A] text-xs">{error}</p>}
+        {error && (
+          <p className="text-[#C7745A] text-xs whitespace-pre-line">{error}</p>
+        )}
+
+        {permissionInfo && (
+          <div className="bg-[#332A23] rounded-xl p-3 border border-[#4C4036]">
+            <p className="text-[#CBB9A7] text-xs whitespace-pre-line">{permissionInfo}</p>
+          </div>
+        )}
 
         {!loading && databases.length === 0 && !error && (
           <p className="text-[#9B8778] text-xs">
@@ -186,7 +197,7 @@ export default function RolesStep() {
 
         <button
           onClick={handleContinue}
-          disabled={loading || saving}
+          disabled={loading || saving || databases.length === 0}
           className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? 'Saving...' : 'Continue'}
@@ -194,19 +205,4 @@ export default function RolesStep() {
       </Card>
     </div>
   )
-}
-
-function extractDbTitle(db: Record<string, unknown>): string {
-  const titleArr = db.title as Array<{ plain_text: string }> | undefined
-  if (titleArr && titleArr.length > 0) return titleArr.map(t => t.plain_text).join('')
-  const props = db.properties as Record<string, unknown> | undefined
-  if (props) {
-    for (const val of Object.values(props)) {
-      const v = val as { type?: string; title?: Array<{ plain_text: string }> }
-      if (v.type === 'title' && v.title) {
-        return v.title.map(t => t.plain_text).join('')
-      }
-    }
-  }
-  return 'Untitled'
 }
