@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isSetupComplete } from '@/lib/config'
+import { isSetupComplete, loadConfig, getExpenseConfig, getExpenseMapping } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import MonthSelectorPill, { MonthOption } from '@/components/dashboard/MonthSelectorPill'
@@ -12,6 +12,7 @@ import OverviewGrid from '@/components/dashboard/OverviewGrid'
 import StatusAndChecksGrid from '@/components/dashboard/StatusAndChecksGrid'
 import ActivityAndCategoriesGrid from '@/components/dashboard/ActivityAndCategoriesGrid'
 import ExploreGrid from '@/components/dashboard/ExploreGrid'
+import MonthlyBudgetGrid, { BudgetCategoryItem, BudgetUtilizationSummary } from '@/components/dashboard/MonthlyBudgetGrid'
 
 const MONTH_LABELS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -127,6 +128,97 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [filteredExpenses])
 
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Budget] lookup=${state.expenseBudgetLookup ? Object.keys(state.expenseBudgetLookup).length + ' cats' : 'null'} filtered=${filteredExpenses.length} txns`)
+  }
+
+  const budgetItems = useMemo<BudgetCategoryItem[]>(() => {
+    const config = loadConfig()
+    if (!config) return []
+    const expenseMapping = getExpenseMapping(config)
+    const categoryType = expenseMapping?.categoryType
+    const categoryColumnName = expenseMapping?.columnMapping?.categoryColumn
+    const budgetLookup = state.expenseBudgetLookup
+    const relationLookup = state.expenseRelationCategoryLookup
+
+    const spendByCategory = new Map<string, { spent: number; name: string }>()
+
+    for (const expense of filteredExpenses) {
+      if (categoryType === 'relation' && categoryColumnName && expense.rawProperties) {
+        const catProp = (expense.rawProperties as Record<string, unknown>)[categoryColumnName] as Record<string, unknown> | undefined
+        const relationArr = (catProp?.relation as Array<{ id: string }> | undefined)
+        const categoryId = relationArr?.[0]?.id
+        if (categoryId) {
+          const entry = spendByCategory.get(categoryId) || { spent: 0, name: '' }
+          entry.spent += expense.amount
+          const nameFromLookup = budgetLookup?.[categoryId]?.name || relationLookup?.[categoryId]
+          entry.name = nameFromLookup || expense.category || 'Unknown'
+          spendByCategory.set(categoryId, entry)
+        }
+      } else if (expense.category) {
+        const entry = spendByCategory.get(expense.category) || { spent: 0, name: expense.category }
+        entry.spent += expense.amount
+        spendByCategory.set(expense.category, entry)
+      }
+    }
+
+    const items: BudgetCategoryItem[] = []
+
+    if (budgetLookup && categoryType === 'relation' && Object.keys(budgetLookup).length > 0) {
+      const seenIds = new Set<string>()
+      for (const [catId, data] of spendByCategory) {
+        const budgetInfo = budgetLookup[catId]
+        const budget = budgetInfo?.budget ?? null
+        const name = budgetInfo?.name || data.name
+        const pct = budget !== null && budget > 0 ? (data.spent / budget) * 100 : null
+        const status = pct !== null
+          ? (pct > 100 ? 'overBudget' as const : pct >= 80 ? 'warning' as const : 'safe' as const)
+          : 'noBudget' as const
+        items.push({ name, spent: data.spent, budget, utilizationPercent: pct, status, categoryId: catId })
+        seenIds.add(catId)
+      }
+      for (const [catId, info] of Object.entries(budgetLookup)) {
+        if (!seenIds.has(catId)) {
+          items.push({
+            name: info.name,
+            spent: 0,
+            budget: info.budget,
+            utilizationPercent: info.budget !== null && info.budget > 0 ? 0 : null,
+            status: 'safe',
+            categoryId: catId,
+          })
+        }
+      }
+    } else {
+      for (const [catId, data] of spendByCategory) {
+        const name = relationLookup?.[catId] || data.name
+        items.push({ name, spent: data.spent, budget: null, utilizationPercent: null, status: 'noBudget', categoryId: catId })
+      }
+    }
+
+    items.sort((a, b) => {
+      const statusOrder = { overBudget: 0, warning: 1, safe: 2, noBudget: 3 }
+      const orderDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+      if (orderDiff !== 0) return orderDiff
+      const pctA = a.utilizationPercent ?? -1
+      const pctB = b.utilizationPercent ?? -1
+      if (pctA !== pctB) return pctB - pctA
+      return a.name.localeCompare(b.name)
+    })
+
+    return items
+  }, [filteredExpenses, state.expenseBudgetLookup, state.expenseRelationCategoryLookup])
+
+  const budgetSummary = useMemo<BudgetUtilizationSummary>(() => {
+    const budgetedItems = budgetItems.filter(i => i.budget !== null && i.budget > 0)
+    return {
+      overBudgetCount: budgetedItems.filter(i => i.status === 'overBudget').length,
+      warningCount: budgetedItems.filter(i => i.status === 'warning').length,
+      onTrackCount: budgetedItems.filter(i => i.status === 'safe').length,
+      noBudgetCount: budgetItems.filter(i => i.status === 'noBudget').length,
+    }
+  }, [budgetItems])
+
   if ((loading || !initialLoadAttempted) && expenses.length === 0 && incomes.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -176,6 +268,8 @@ export default function DashboardPage() {
             mostUsedCategory={mostUsedCategory}
             uncategorizedCount={uncategorizedCount}
           />
+
+          <MonthlyBudgetGrid items={budgetItems} summary={budgetSummary} />
 
           <ActivityAndCategoriesGrid
             recentTransactions={recentTransactions}

@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { isSetupComplete } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
+import { useFilters } from '@/hooks/use-filters'
 import { NormalizedTransaction } from '@/types/transaction'
 import TransactionList from '@/components/TransactionList'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import FilterBar from '@/components/FilterBar'
+import FilterSheet from '@/components/FilterSheet'
 import { RefreshCw, Plus } from 'lucide-react'
 
 export default function IncomePage() {
@@ -18,6 +21,33 @@ export default function IncomePage() {
       router.replace('/setup')
     }
   }, [router])
+
+  const {
+    draft,
+    sheetOpen,
+    active,
+    result,
+    activeCount,
+    filteredColumns,
+    columnOptions,
+    openSheet,
+    closeSheet,
+    setDraft,
+    applyFilters,
+    clearAll,
+    removeColumnFilter,
+    clearDateRange,
+    addColumnFilter,
+    updateColumnFilter,
+    updateDateFrom,
+    updateDateTo,
+    updateSearch,
+  } = useFilters(state.incomes, 'income')
+
+  const relationLookup = useMemo(
+    () => state.incomeRelationCategoryLookup || {},
+    [state.incomeRelationCategoryLookup],
+  )
 
   const handleEdit = (t: NormalizedTransaction) => {
     router.push(`/edit/${t.id}`)
@@ -72,14 +102,40 @@ export default function IncomePage() {
         </div>
       </div>
 
-      <p className="text-[#9B8778] text-xs mb-4">
-        {state.incomes.length} transaction{state.incomes.length !== 1 ? 's' : ''}
-      </p>
+      <FilterBar
+        active={active}
+        activeCount={activeCount}
+        filteredTotal={result.total}
+        totalCount={state.incomes.length}
+        isFiltered={state.incomes.length !== result.filtered.length}
+        resultCount={result.filtered.length}
+        relationLookup={relationLookup}
+        onSearchChange={updateSearch}
+        onOpenSheet={openSheet}
+        onRemoveColumnFilter={removeColumnFilter}
+        onClearDateRange={clearDateRange}
+      />
 
       <TransactionList
-        transactions={state.incomes}
+        transactions={result.filtered}
         onEdit={handleEdit}
         onDelete={handleDelete}
+      />
+
+      <FilterSheet
+        open={sheetOpen}
+        onClose={closeSheet}
+        draft={draft}
+        setDraft={setDraft}
+        onApply={applyFilters}
+        onClearAll={clearAll}
+        onUpdateDateFrom={updateDateFrom}
+        onUpdateDateTo={updateDateTo}
+        onAddColumnFilter={addColumnFilter}
+        onRemoveColumnFilter={removeColumnFilter}
+        onUpdateColumnFilter={updateColumnFilter}
+        filteredColumns={filteredColumns}
+        columnOptions={columnOptions}
       />
     </div>
   )

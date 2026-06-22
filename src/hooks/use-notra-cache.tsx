@@ -14,6 +14,7 @@ interface CacheState {
   error: string | null
   expenseRelationCategoryLookup: Record<string, string> | null
   incomeRelationCategoryLookup: Record<string, string> | null
+  expenseBudgetLookup: Record<string, { name: string; budget: number | null }> | null
 }
 
 type CacheAction =
@@ -29,6 +30,7 @@ type CacheAction =
   | { type: 'SET_INCOME_RELATION_LOOKUP'; payload: Record<string, string> | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_EXPENSE_BUDGET_LOOKUP'; payload: Record<string, { name: string; budget: number | null }> | null }
 
 const initialState: CacheState = {
   expenses: [],
@@ -39,6 +41,7 @@ const initialState: CacheState = {
   error: null,
   expenseRelationCategoryLookup: null,
   incomeRelationCategoryLookup: null,
+  expenseBudgetLookup: null,
 }
 
 function cacheReducer(state: CacheState, action: CacheAction): CacheState {
@@ -83,6 +86,8 @@ function cacheReducer(state: CacheState, action: CacheAction): CacheState {
       return { ...state, incomeRelationCategoryLookup: action.payload }
     case 'SET_ERROR':
       return { ...state, error: action.payload }
+    case 'SET_EXPENSE_BUDGET_LOOKUP':
+      return { ...state, expenseBudgetLookup: action.payload }
     default:
       return state
   }
@@ -165,6 +170,74 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     return null
   }
 
+  const buildBudgetLookup = async (
+    token: string,
+    relationDbId: string
+  ): Promise<Record<string, { name: string; budget: number | null }> | null> => {
+    const budgetKeywords = ['monthly budget', 'budget', 'limit', 'monthly limit', 'planned', 'target', 'cap']
+
+    const extractBudgetData = (rows: Array<Record<string, unknown>>): Record<string, { name: string; budget: number | null }> => {
+      const result: Record<string, { name: string; budget: number | null }> = {}
+      for (const row of rows) {
+        const props = (row.properties || {}) as Record<string, unknown>
+        const titleProp = Object.values(props).find(
+          (v: unknown) => (v as Record<string, unknown>).type === 'title'
+        ) as Record<string, unknown> | undefined
+        const name = safeExtractText(titleProp?.title).trim()
+        if (!name) continue
+
+        let budget: number | null = null
+        for (const [propKey, propEntry] of Object.entries(props)) {
+          const prop = propEntry as Record<string, unknown>
+          if (prop.type === 'number') {
+            const propName = propKey.toLowerCase()
+            const matchScore = budgetKeywords.reduce((best, kw) => {
+              if (propName === kw) return Math.max(best, propName === 'monthly budget' ? 100 : 90)
+              if (propName.includes(kw)) return Math.max(best, 40)
+              return best
+            }, 0)
+            if (matchScore > 0 && typeof prop.number === 'number') {
+              budget = prop.number
+            }
+          }
+        }
+        result[row.id as string] = { name, budget }
+      }
+      return result
+    }
+
+    try {
+      const dbRes = await fetch('/api/notion/databases/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, databaseId: relationDbId }),
+      })
+      if (dbRes.ok) {
+        const data = await dbRes.json()
+        const budgetData = extractBudgetData(data.results || [])
+        if (process.env.NODE_ENV === 'development') {
+          const withBudget = Object.values(budgetData).filter(d => d.budget !== null).length
+          console.log(`[Budget] lookup: ${Object.keys(budgetData).length} categories, ${withBudget} with budget limits`)
+        }
+        return budgetData
+      }
+    } catch { /* fall through */ }
+
+    try {
+      const dsRes = await fetch('/api/notion/data-sources/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, dataSourceId: relationDbId }),
+      })
+      if (dsRes.ok) {
+        const data = await dsRes.json()
+        return extractBudgetData(data.results || [])
+      }
+    } catch { /* fall through */ }
+
+    return null
+  }
+
   const loadData = useCallback(async () => {
     const config = loadConfig()
     if (!config) return
@@ -192,6 +265,15 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       if (incomeRelationDbId && !incomeRelationCategoryLookup) {
         incomeRelationCategoryLookup = await buildRelationLookup(token, 'income', incomeRelationDbId)
         dispatch({ type: 'SET_INCOME_RELATION_LOOKUP', payload: incomeRelationCategoryLookup })
+      }
+
+      // Build expense budget lookup (only once)
+      const expenseBudgetLookup = state.expenseBudgetLookup
+      if (expenseRelationDbId && !expenseBudgetLookup) {
+        const budgetData = await buildBudgetLookup(token, expenseRelationDbId)
+        if (budgetData) {
+          dispatch({ type: 'SET_EXPENSE_BUDGET_LOOKUP', payload: budgetData })
+        }
       }
 
       if (expenseCfg.databaseId) {
@@ -262,7 +344,7 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false })
     }
-  }, [state.expenseRelationCategoryLookup, state.incomeRelationCategoryLookup])
+  }, [state.expenseRelationCategoryLookup, state.incomeRelationCategoryLookup, state.expenseBudgetLookup])
 
   useEffect(() => {
     loadData()
