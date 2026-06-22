@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { NormalizedTransaction, SplitPerson } from '@/types/transaction'
 import { loadConfig, getExpenseConfig, getIncomeConfig, getExpenseMapping, getIncomeMapping } from '@/lib/config'
+import { useCache } from '@/hooks/use-notra-cache'
 import { stablePersonId, safeExtractText } from '@/lib/notion-properties'
 import {
   calculateSplit,
@@ -18,6 +19,7 @@ import Chip from '@/components/Chip'
 
 interface TransactionFormProps {
   existing?: NormalizedTransaction
+  defaultRole?: 'expense' | 'income'
 }
 
 interface SplitCalcState {
@@ -31,11 +33,13 @@ interface FieldOption {
   id?: string
 }
 
-export default function TransactionForm({ existing }: TransactionFormProps) {
+export default function TransactionForm({ existing, defaultRole }: TransactionFormProps) {
   const router = useRouter()
+  const { loadData } = useCache()
   const isEdit = !!existing
 
-  const [role, setRole] = useState<'expense' | 'income'>(existing?.databaseRole || 'expense')
+  const [role, setRole] = useState<'expense' | 'income'>(existing?.databaseRole || defaultRole || 'expense')
+  const [showSuccess, setShowSuccess] = useState(false)
   const [title, setTitle] = useState(existing?.title || '')
   const [amount, setAmount] = useState(() => {
     if (!existing) return ''
@@ -473,6 +477,28 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, monthClassificationOptions])
 
+  const resetForm = () => {
+    setTitle('')
+    setAmount('')
+    setDate(new Date().toISOString().split('T')[0])
+    setCategory('')
+    setCategoryOption(null)
+    setMonthClassificationValue(null)
+    setIsSplit(false)
+    setPeople([])
+    setNewPersonName('')
+    setSplitMethod('equal')
+    setPercentMode('myPercent')
+    setMyPercent('')
+    setTheirPercent('')
+    setExactMode('theyOwe')
+    setCustomAmount('')
+    setHhsMode('iPayExtra')
+    setExtraAmount('')
+    setShowSuccess(true)
+    setTimeout(() => setShowSuccess(false), 3000)
+  }
+
   const handleSubmit = async () => {
     const config = loadConfig()
     if (!config) return
@@ -541,7 +567,15 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
         if (!res.ok) throw new Error('Failed to create')
       }
 
-      router.push(role === 'expense' ? '/expenses' : '/income')
+      // Refresh cache in background
+      await loadData()
+
+      if (isEdit && existing) {
+        router.push(existing.databaseRole === 'expense' ? '/expenses' : '/income')
+      } else {
+        // Stay on form after add, reset fields
+        resetForm()
+      }
     } catch (e) {
       alert('Failed to save transaction')
     } finally {
@@ -561,6 +595,7 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
         body: JSON.stringify({ token: config.notionToken }),
       })
       if (!res.ok) throw new Error('Failed to delete')
+      await loadData()
       router.push(existing.databaseRole === 'expense' ? '/expenses' : '/income')
     } catch {
       alert('Failed to delete transaction')
@@ -571,6 +606,14 @@ export default function TransactionForm({ existing }: TransactionFormProps) {
 
   return (
     <div className="max-w-lg mx-auto">
+      {showSuccess && (
+        <div className="mb-4 p-3 bg-[#8CA37D]/20 border border-[#8CA37D] rounded-xl text-[#8CA37D] text-sm font-medium flex items-center gap-2">
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+          Transaction saved successfully
+        </div>
+      )}
       <Card className="p-6 space-y-5">
         {!isEdit && (
           <div>

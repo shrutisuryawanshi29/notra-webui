@@ -5,6 +5,8 @@ import { Receipt } from 'lucide-react'
 interface StatusAndChecksGridProps {
   savingsRate: number
   netBalance: number
+  expenseCount: number
+  incomeCount: number
   largestExpense: { title: string; amount: number } | null
   mostUsedCategory: { name: string; count: number } | null
   uncategorizedCount: number
@@ -13,10 +15,42 @@ interface StatusAndChecksGridProps {
 export default function StatusAndChecksGrid({
   savingsRate,
   netBalance,
+  expenseCount,
+  incomeCount,
   largestExpense,
   mostUsedCategory,
   uncategorizedCount,
 }: StatusAndChecksGridProps) {
+  const hasIncome = incomeCount > 0
+  const hasExpenses = expenseCount > 0
+
+  let mainText: string
+  let subText: string
+  let footerText: string
+
+  if (!hasExpenses && !hasIncome) {
+    mainText = 'No transactions yet for this month'
+    subText = 'Add your first expense or income'
+    footerText = '0 expenses · 0 income entries'
+  } else if (!hasIncome) {
+    mainText = 'No income recorded this month'
+    subText = 'Add income to calculate savings rate'
+    footerText = `${expenseCount} expense${expenseCount !== 1 ? 's' : ''} · 0 income entries`
+  } else if (netBalance >= 0) {
+    mainText = `You saved $${netBalance.toFixed(2)} this month`
+    subText = `Income is higher than expenses by ${Math.abs(savingsRate).toFixed(0)}%`
+    footerText = `${expenseCount} expense${expenseCount !== 1 ? 's' : ''} · ${incomeCount} income ${incomeCount !== 1 ? 'entries' : 'entry'}`
+  } else {
+    mainText = `You spent $${Math.abs(netBalance).toFixed(2)} more than you earned`
+    subText = `Expenses are higher than income by ${Math.abs(savingsRate).toFixed(0)}%`
+    footerText = `${expenseCount} expense${expenseCount !== 1 ? 's' : ''} · ${incomeCount} income ${incomeCount !== 1 ? 'entries' : 'entry'}`
+  }
+
+  const isPositive = netBalance >= 0 && hasIncome
+  const isNegative = netBalance < 0 && hasIncome
+  const iconBgColor = isPositive ? 'bg-[#8CA37D]' : isNegative ? 'bg-[#C7745A]' : 'bg-[#C99152]'
+  const mainTextColor = isPositive ? 'text-[#8CA37D]' : isNegative ? 'text-[#C7745A]' : 'text-[#F4E9DA]'
+
   return (
     <section>
       <h3 className="text-[#CBB9A7] text-xs font-semibold uppercase tracking-wider mb-3">
@@ -24,25 +58,32 @@ export default function StatusAndChecksGrid({
       </h3>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Status */}
-        <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036] space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-[#CBB9A7] text-xs">Savings Rate</span>
-            <span className={`text-sm font-bold ${savingsRate >= 0 ? 'text-[#8CA37D]' : 'text-[#C7745A]'}`}>
-              {savingsRate.toFixed(1)}%
-            </span>
+        <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036] space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center ${iconBgColor}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+                <path d="M22 12A10 10 0 0 0 12 2v10z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[#F4E9DA] text-base font-semibold leading-tight">
+                {mainText}
+              </p>
+              <p className={`text-sm font-medium mt-0.5 ${mainTextColor}`}>
+                {savingsRate >= 0 && hasIncome ? `${savingsRate.toFixed(1)}% savings rate` : subText}
+              </p>
+            </div>
           </div>
-          <div className="h-2 bg-[#40342B] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${savingsRate >= 0 ? 'bg-[#8CA37D]' : 'bg-[#C7745A]'}`}
-              style={{ width: `${Math.min(Math.abs(savingsRate), 100)}%` }}
-            />
-          </div>
-          <p className="text-[#9B8778] text-xs">
-            {netBalance >= 0
-              ? `You saved $${netBalance.toFixed(2)} this month`
-              : `You overspent by $${Math.abs(netBalance).toFixed(2)} this month`
-            }
-          </p>
+          {hasIncome && (
+            <div className="h-2 bg-[#40342B] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${isPositive ? 'bg-[#8CA37D]' : 'bg-[#C7745A]'}`}
+                style={{ width: `${Math.min(Math.abs(savingsRate), 100)}%` }}
+              />
+            </div>
+          )}
+          <p className="text-[#9B8778] text-xs">{footerText}</p>
         </div>
 
         {/* Quick Checks */}

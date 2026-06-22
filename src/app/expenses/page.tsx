@@ -62,11 +62,11 @@ export default function ExpensesPage() {
           >
             <RefreshCw size={18} />
           </button>
-          <button
-            onClick={() => router.push('/add')}
-            className="bg-[#C7745A] text-white p-2 rounded-lg hover:bg-[#B0634B] transition-colors"
-            title="Add expense"
-          >
+        <button
+          onClick={() => router.push('/add?role=expense')}
+          className="bg-[#C7745A] text-white p-2 rounded-lg hover:bg-[#B0634B] transition-colors"
+          title="Add expense"
+        >
             <Plus size={18} />
           </button>
         </div>

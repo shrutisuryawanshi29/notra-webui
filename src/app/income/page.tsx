@@ -62,11 +62,11 @@ export default function IncomePage() {
           >
             <RefreshCw size={18} />
           </button>
-          <button
-            onClick={() => router.push('/add')}
-            className="bg-[#8CA37D] text-white p-2 rounded-lg hover:bg-[#7B9270] transition-colors"
-            title="Add income"
-          >
+        <button
+          onClick={() => router.push('/add?role=income')}
+          className="bg-[#8CA37D] text-white p-2 rounded-lg hover:bg-[#7B9270] transition-colors"
+          title="Add income"
+        >
             <Plus size={18} />
           </button>
         </div>

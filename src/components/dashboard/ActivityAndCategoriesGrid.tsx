@@ -1,6 +1,6 @@
 'use client'
 
-import { Receipt, TrendingUp } from 'lucide-react'
+import { Receipt } from 'lucide-react'
 
 interface ActivityItem {
   id: string
@@ -21,17 +21,13 @@ interface CategoryItem {
 interface ActivityAndCategoriesGridProps {
   recentTransactions: ActivityItem[]
   expenseCategories: CategoryItem[]
-  incomeCategories: CategoryItem[]
   totalSpend: number
-  totalIncome: number
 }
 
 export default function ActivityAndCategoriesGrid({
   recentTransactions,
   expenseCategories,
-  incomeCategories,
   totalSpend,
-  totalIncome,
 }: ActivityAndCategoriesGridProps) {
   return (
     <section>
@@ -65,72 +61,39 @@ export default function ActivityAndCategoriesGrid({
           )}
         </div>
 
-        {/* Categories */}
+        {/* Expense Categories */}
         <div>
-          {(expenseCategories.length > 0 || incomeCategories.length > 0) ? (
-            <div className="space-y-3">
-              {expenseCategories.length > 0 && (
-                <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036]">
-                  <h4 className="text-[#C7745A] text-xs font-semibold mb-3 flex items-center gap-1.5">
-                    <Receipt size={12} />
-                    Expenses
-                  </h4>
-                  <div className="space-y-2">
-                    {expenseCategories.map(cat => {
-                      const pct = totalSpend > 0 ? (cat.spent! / totalSpend) * 100 : 0
-                      return (
-                        <div key={cat.name}>
-                          <div className="flex justify-between text-xs mb-0.5">
-                            <span className="text-[#CBB9A7]">{cat.name}</span>
-                            <span className="text-[#C7745A]">
-                              ${cat.spent!.toFixed(2)} ({pct.toFixed(0)}%)
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-[#40342B] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#C7745A] rounded-full"
-                              style={{ width: `${Math.min(pct, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              {incomeCategories.length > 0 && (
-                <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036]">
-                  <h4 className="text-[#8CA37D] text-xs font-semibold mb-3 flex items-center gap-1.5">
-                    <TrendingUp size={12} />
-                    Income
-                  </h4>
-                  <div className="space-y-2">
-                    {incomeCategories.map(cat => {
-                      const pct = totalIncome > 0 ? (cat.total! / totalIncome) * 100 : 0
-                      return (
-                        <div key={cat.name}>
-                          <div className="flex justify-between text-xs mb-0.5">
-                            <span className="text-[#CBB9A7]">{cat.name}</span>
-                            <span className="text-[#8CA37D]">
-                              ${cat.total!.toFixed(2)} ({pct.toFixed(0)}%)
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-[#40342B] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#8CA37D] rounded-full"
-                              style={{ width: `${Math.min(pct, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+          {expenseCategories.length > 0 ? (
+            <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036]">
+              <h4 className="text-[#C7745A] text-xs font-semibold mb-3 flex items-center gap-1.5">
+                <Receipt size={12} />
+                Expenses
+              </h4>
+              <div className="space-y-2">
+                {expenseCategories.map(cat => {
+                  const pct = totalSpend > 0 ? (cat.spent! / totalSpend) * 100 : 0
+                  return (
+                    <div key={cat.name}>
+                      <div className="flex justify-between text-xs mb-0.5">
+                        <span className="text-[#CBB9A7]">{cat.name}</span>
+                        <span className="text-[#C7745A]">
+                          ${cat.spent!.toFixed(2)} ({pct.toFixed(0)}%)
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-[#40342B] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#C7745A] rounded-full"
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ) : (
             <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036]">
-              <p className="text-[#9B8778] text-xs">No category data</p>
+              <p className="text-[#9B8778] text-xs">No expense category data</p>
             </div>
           )}
         </div>

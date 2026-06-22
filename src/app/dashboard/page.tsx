@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { state, loadData } = useCache()
   const { expenses, incomes, loading } = state
+  const [initialLoadAttempted, setInitialLoadAttempted] = useState(false)
   const syncedTime = (() => {
     const n = new Date()
     return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`
@@ -42,6 +43,13 @@ export default function DashboardPage() {
       router.replace('/setup')
     }
   }, [router])
+
+  useEffect(() => {
+    if (expenses.length === 0 && incomes.length === 0 && !loading && !initialLoadAttempted) {
+      setInitialLoadAttempted(true)
+      loadData()
+    }
+  }, [expenses.length, incomes.length, loading, initialLoadAttempted, loadData])
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -119,22 +127,7 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [filteredExpenses])
 
-  const incomeCategories = useMemo(() => {
-    const map = new Map<string, { total: number; count: number }>()
-    for (const i of filteredIncomes) {
-      const cat = i.category || 'Uncategorized'
-      const existing = map.get(cat) || { total: 0, count: 0 }
-      existing.total += i.amount
-      existing.count += 1
-      map.set(cat, existing)
-    }
-    return Array.from(map.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5)
-  }, [filteredIncomes])
-
-  if (loading && expenses.length === 0 && incomes.length === 0) {
+  if ((loading || !initialLoadAttempted) && expenses.length === 0 && incomes.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />
@@ -177,6 +170,8 @@ export default function DashboardPage() {
           <StatusAndChecksGrid
             savingsRate={savingsRate}
             netBalance={netBalance}
+            expenseCount={filteredExpenses.length}
+            incomeCount={filteredIncomes.length}
             largestExpense={largestExpense ? { title: largestExpense.title, amount: largestExpense.amount } : null}
             mostUsedCategory={mostUsedCategory}
             uncategorizedCount={uncategorizedCount}
@@ -185,9 +180,7 @@ export default function DashboardPage() {
           <ActivityAndCategoriesGrid
             recentTransactions={recentTransactions}
             expenseCategories={expenseCategories}
-            incomeCategories={incomeCategories}
             totalSpend={totalSpend}
-            totalIncome={totalIncome}
           />
 
           <ExploreGrid
@@ -201,7 +194,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="fixed bottom-24 md:bottom-8 right-6 z-50">
-        <FloatingActionButton onClick={() => router.push('/add')} />
+        <FloatingActionButton onClick={() => router.push('/add?role=expense')} />
       </div>
     </div>
   )
