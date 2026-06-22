@@ -82,21 +82,26 @@ function matchesColumnFilter(
   filter: ColumnFilter,
   relationLookup: Record<string, string>,
 ): boolean {
-  let value = getPropertyValue(t, filter.columnName)
+  const rawValue = getPropertyValue(t, filter.columnName)
 
-  if (filter.columnType === 'relation' && value) {
-    const ids = value.split(',').filter(Boolean)
-    const names = ids.map((id) => relationLookup[id] || id).filter(Boolean)
-    value = names.join(', ')
+  if (filter.columnType === 'relation') {
+    if (!rawValue) return false
+    const txIds = rawValue.split(',').filter(Boolean)
+    const txNames = txIds.map((id) => relationLookup[id] || id).filter(Boolean)
+    const fvLower = filter.value.toLowerCase().trim()
+
     if (filter.operator === 'equals') {
-      return names.some((name) => name.toLowerCase().trim() === filter.value.toLowerCase().trim())
+      return txIds.includes(filter.value) ||
+        txNames.some((n) => n.toLowerCase().trim() === fvLower)
     }
     if (filter.operator === 'contains') {
-      return names.some((name) => name.toLowerCase().trim().includes(filter.value.toLowerCase().trim()))
+      return txNames.some((name) => name.toLowerCase().trim().includes(fvLower)) ||
+        txIds.some((id) => id.toLowerCase().trim().includes(fvLower))
     }
+    return false
   }
 
-  return matchValue(value, filter.value, filter.operator)
+  return matchValue(rawValue, filter.value, filter.operator)
 }
 
 function matchesDateRange(
@@ -217,5 +222,9 @@ export function chipLabel(filter: ColumnFilter, relationLookup: Record<string, s
     less_than: '<',
   }
   const opLabel = opLabels[filter.operator] || filter.operator
-  return `${filter.columnName} ${opLabel} ${filter.value}`
+  let displayValue = filter.value
+  if (filter.columnType === 'relation') {
+    displayValue = relationLookup[filter.value] || filter.value
+  }
+  return `${filter.columnName} ${opLabel} ${displayValue}`
 }

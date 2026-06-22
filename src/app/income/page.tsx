@@ -36,6 +36,7 @@ export default function IncomePage() {
     applyFilters,
     clearAll,
     removeColumnFilter,
+    removeActiveFilter,
     clearDateRange,
     addColumnFilter,
     updateColumnFilter,
@@ -45,8 +46,8 @@ export default function IncomePage() {
   } = useFilters(state.incomes, 'income')
 
   const relationLookup = useMemo(
-    () => state.incomeRelationCategoryLookup || {},
-    [state.incomeRelationCategoryLookup],
+    () => ({ ...(state.incomeRelationCategoryLookup || {}), ...(state.incomeMonthClassificationLookup || {}) }),
+    [state.incomeRelationCategoryLookup, state.incomeMonthClassificationLookup],
   )
 
   const handleEdit = (t: NormalizedTransaction) => {
@@ -112,7 +113,7 @@ export default function IncomePage() {
         relationLookup={relationLookup}
         onSearchChange={updateSearch}
         onOpenSheet={openSheet}
-        onRemoveColumnFilter={removeColumnFilter}
+        onRemoveColumnFilter={removeActiveFilter}
         onClearDateRange={clearDateRange}
       />
 

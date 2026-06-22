@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { NormalizedTransaction } from '@/types/transaction'
-import { ColumnFilter, FilterDraft, ActiveFilters, FilterableColumn } from '@/types/filters'
+import { ColumnFilter, FilterDraft, ActiveFilters, FilterableColumn, FilterOption } from '@/types/filters'
 import { applyFilters, FilterResult } from '@/lib/filter-engine'
 import { useCache } from './use-notra-cache'
 
@@ -18,7 +18,7 @@ export interface UseFiltersReturn {
   result: FilterResult
   activeCount: number
   filteredColumns: FilterableColumn[]
-  columnOptions: Record<string, string[]>
+  columnOptions: Record<string, FilterOption[]>
 
   openSheet: () => void
   closeSheet: () => void
@@ -26,6 +26,7 @@ export interface UseFiltersReturn {
   applyFilters: () => void
   clearAll: () => void
   removeColumnFilter: (id: string) => void
+  removeActiveFilter: (id: string) => void
   clearDateRange: () => void
   addColumnFilter: (columnName: string, columnType: string) => void
   updateColumnFilter: (id: string, updates: Partial<ColumnFilter>) => void
@@ -50,10 +51,20 @@ export function useFilters(
   })
 
   const relationLookup = useMemo(() => {
-    return role === 'expense'
+    const cat = role === 'expense'
       ? (state.expenseRelationCategoryLookup || {})
       : (state.incomeRelationCategoryLookup || {})
-  }, [role, state.expenseRelationCategoryLookup, state.incomeRelationCategoryLookup])
+    const mc = role === 'expense'
+      ? (state.expenseMonthClassificationLookup || {})
+      : (state.incomeMonthClassificationLookup || {})
+    return { ...cat, ...mc }
+  }, [
+    role,
+    state.expenseRelationCategoryLookup,
+    state.incomeRelationCategoryLookup,
+    state.expenseMonthClassificationLookup,
+    state.incomeMonthClassificationLookup,
+  ])
 
   const result = useMemo<FilterResult>(
     () => applyFilters(transactions, active, relationLookup),
@@ -93,8 +104,8 @@ export function useFilters(
     return cols
   }, [transactions])
 
-  const columnOptions = useMemo<Record<string, string[]>>(() => {
-    const opts: Record<string, string[]> = {}
+  const columnOptions = useMemo<Record<string, FilterOption[]>>(() => {
+    const opts: Record<string, FilterOption[]> = {}
 
     for (const col of filteredColumns) {
       if (col.name === 'Category') {
@@ -102,22 +113,26 @@ export function useFilters(
         for (const t of transactions) {
           if (t.category) cats.add(t.category)
         }
-        opts[col.name] = [...cats].sort()
+        opts[col.name] = [...cats].sort().map((c) => ({ value: c, label: c }))
         continue
       }
 
       if (col.type === 'relation') {
-        const names = new Set<string>()
+        const seen = new Set<string>()
+        const items: FilterOption[] = []
         for (const t of transactions) {
           const prop = t.rawProperties?.[col.name]
           if (prop?.type === 'relation') {
             for (const rel of prop.relation || []) {
-              const resolved = relationLookup[rel.id]
-              if (resolved) names.add(resolved)
+              if (seen.has(rel.id)) continue
+              seen.add(rel.id)
+              const name = relationLookup[rel.id]
+              items.push({ value: rel.id, label: name || rel.id })
             }
           }
         }
-        opts[col.name] = [...names].sort()
+        items.sort((a, b) => a.label.localeCompare(b.label))
+        opts[col.name] = items
         continue
       }
 
@@ -129,7 +144,7 @@ export function useFilters(
           if (prop.type === 'select' && prop.select?.name) options.add(prop.select.name)
           if (prop.type === 'status' && prop.status?.name) options.add(prop.status.name)
         }
-        opts[col.name] = [...options].sort()
+        opts[col.name] = [...options].sort().map((c) => ({ value: c, label: c }))
         continue
       }
 
@@ -143,7 +158,7 @@ export function useFilters(
             }
           }
         }
-        opts[col.name] = [...options].sort()
+        opts[col.name] = [...options].sort().map((c) => ({ value: c, label: c }))
         continue
       }
     }
@@ -180,6 +195,13 @@ export function useFilters(
 
   const removeColumnFilter = useCallback((id: string) => {
     setDraft((prev) => ({
+      ...prev,
+      columnFilters: prev.columnFilters.filter((cf) => cf.id !== id),
+    }))
+  }, [])
+
+  const removeActiveFilter = useCallback((id: string) => {
+    setActive((prev) => ({
       ...prev,
       columnFilters: prev.columnFilters.filter((cf) => cf.id !== id),
     }))
@@ -236,6 +258,7 @@ export function useFilters(
     applyFilters: handleApply,
     clearAll: handleClearAll,
     removeColumnFilter,
+    removeActiveFilter,
     clearDateRange,
     addColumnFilter,
     updateColumnFilter,

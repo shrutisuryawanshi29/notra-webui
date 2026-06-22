@@ -1,7 +1,7 @@
 'use client'
 
-import { X, Plus, Search } from 'lucide-react'
-import { ColumnFilter, FilterDraft, FilterableColumn, FilterOperator } from '@/types/filters'
+import { X, Plus } from 'lucide-react'
+import { ColumnFilter, FilterDraft, FilterableColumn, FilterOperator, FilterOption } from '@/types/filters'
 import { operatorsForType } from '@/lib/filter-engine'
 
 interface FilterSheetProps {
@@ -17,7 +17,7 @@ interface FilterSheetProps {
   onRemoveColumnFilter: (id: string) => void
   onUpdateColumnFilter: (id: string, updates: Partial<ColumnFilter>) => void
   filteredColumns: FilterableColumn[]
-  columnOptions: Record<string, string[]>
+  columnOptions: Record<string, FilterOption[]>
 }
 
 function FilterRow({
@@ -29,7 +29,7 @@ function FilterRow({
 }: {
   filter: ColumnFilter
   filteredColumns: FilterableColumn[]
-  columnOptions: Record<string, string[]>
+  columnOptions: Record<string, FilterOption[]>
   onRemove: () => void
   onChange: (updates: Partial<ColumnFilter>) => void
 }) {
@@ -89,7 +89,7 @@ function FilterRow({
         >
           <option value="">Select {filter.columnName.toLowerCase()}...</option>
           {options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       ) : filter.columnType === 'number' ? (

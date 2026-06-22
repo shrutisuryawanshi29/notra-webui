@@ -14,6 +14,8 @@ interface CacheState {
   error: string | null
   expenseRelationCategoryLookup: Record<string, string> | null
   incomeRelationCategoryLookup: Record<string, string> | null
+  expenseMonthClassificationLookup: Record<string, string> | null
+  incomeMonthClassificationLookup: Record<string, string> | null
   expenseBudgetLookup: Record<string, { name: string; budget: number | null }> | null
 }
 
@@ -28,6 +30,8 @@ type CacheAction =
   | { type: 'DELETE_INCOME'; payload: string }
   | { type: 'SET_EXPENSE_RELATION_LOOKUP'; payload: Record<string, string> | null }
   | { type: 'SET_INCOME_RELATION_LOOKUP'; payload: Record<string, string> | null }
+  | { type: 'SET_EXPENSE_MC_LOOKUP'; payload: Record<string, string> | null }
+  | { type: 'SET_INCOME_MC_LOOKUP'; payload: Record<string, string> | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_EXPENSE_BUDGET_LOOKUP'; payload: Record<string, { name: string; budget: number | null }> | null }
@@ -41,6 +45,8 @@ const initialState: CacheState = {
   error: null,
   expenseRelationCategoryLookup: null,
   incomeRelationCategoryLookup: null,
+  expenseMonthClassificationLookup: null,
+  incomeMonthClassificationLookup: null,
   expenseBudgetLookup: null,
 }
 
@@ -84,6 +90,10 @@ function cacheReducer(state: CacheState, action: CacheAction): CacheState {
       return { ...state, expenseRelationCategoryLookup: action.payload }
     case 'SET_INCOME_RELATION_LOOKUP':
       return { ...state, incomeRelationCategoryLookup: action.payload }
+    case 'SET_EXPENSE_MC_LOOKUP':
+      return { ...state, expenseMonthClassificationLookup: action.payload }
+    case 'SET_INCOME_MC_LOOKUP':
+      return { ...state, incomeMonthClassificationLookup: action.payload }
     case 'SET_ERROR':
       return { ...state, error: action.payload }
     case 'SET_EXPENSE_BUDGET_LOOKUP':
@@ -265,6 +275,21 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       if (incomeRelationDbId && !incomeRelationCategoryLookup) {
         incomeRelationCategoryLookup = await buildRelationLookup(token, 'income', incomeRelationDbId)
         dispatch({ type: 'SET_INCOME_RELATION_LOOKUP', payload: incomeRelationCategoryLookup })
+      }
+
+      // Build month classification lookups per role
+      const expenseMcDbId = expenseMapping?.columnMapping?.monthClassificationRelationDataSourceId
+      let expenseMonthClassificationLookup = state.expenseMonthClassificationLookup
+      if (expenseMcDbId && !expenseMonthClassificationLookup) {
+        expenseMonthClassificationLookup = await buildRelationLookup(token, 'expense', expenseMcDbId)
+        dispatch({ type: 'SET_EXPENSE_MC_LOOKUP', payload: expenseMonthClassificationLookup })
+      }
+
+      const incomeMcDbId = incomeMapping?.columnMapping?.monthClassificationRelationDataSourceId
+      let incomeMonthClassificationLookup = state.incomeMonthClassificationLookup
+      if (incomeMcDbId && !incomeMonthClassificationLookup) {
+        incomeMonthClassificationLookup = await buildRelationLookup(token, 'income', incomeMcDbId)
+        dispatch({ type: 'SET_INCOME_MC_LOOKUP', payload: incomeMonthClassificationLookup })
       }
 
       // Build expense budget lookup (only once)

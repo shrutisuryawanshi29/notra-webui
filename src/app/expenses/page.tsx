@@ -36,6 +36,7 @@ export default function ExpensesPage() {
     applyFilters,
     clearAll,
     removeColumnFilter,
+    removeActiveFilter,
     clearDateRange,
     addColumnFilter,
     updateColumnFilter,
@@ -45,8 +46,8 @@ export default function ExpensesPage() {
   } = useFilters(state.expenses, 'expense')
 
   const relationLookup = useMemo(
-    () => state.expenseRelationCategoryLookup || {},
-    [state.expenseRelationCategoryLookup],
+    () => ({ ...(state.expenseRelationCategoryLookup || {}), ...(state.expenseMonthClassificationLookup || {}) }),
+    [state.expenseRelationCategoryLookup, state.expenseMonthClassificationLookup],
   )
 
   const handleEdit = (t: NormalizedTransaction) => {
@@ -112,7 +113,7 @@ export default function ExpensesPage() {
         relationLookup={relationLookup}
         onSearchChange={updateSearch}
         onOpenSheet={openSheet}
-        onRemoveColumnFilter={removeColumnFilter}
+        onRemoveColumnFilter={removeActiveFilter}
         onClearDateRange={clearDateRange}
       />
 
