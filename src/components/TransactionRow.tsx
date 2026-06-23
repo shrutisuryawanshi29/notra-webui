@@ -1,7 +1,6 @@
 import { NormalizedTransaction } from '@/types/transaction'
 import { getSplitSubtitle } from '@/lib/split-metadata'
 import Card from './Card'
-import Chip from './Chip'
 import { Pencil, Trash2 } from 'lucide-react'
 
 interface TransactionRowProps {
@@ -10,13 +9,19 @@ interface TransactionRowProps {
   onDelete?: (t: NormalizedTransaction) => void
 }
 
+const SPLIT_COLORS = { pending: '#C49A5A', settled: '#8CA37D' }
+
 export default function TransactionRow({ transaction, onEdit, onDelete }: TransactionRowProps) {
   const isExpense = transaction.databaseRole === 'expense'
+  const accentColor = isExpense ? '#C7745A' : '#8CA37D'
   const color = isExpense ? 'text-[#C7745A]' : 'text-[#8CA37D]'
 
   const subtitle = transaction.splitMetadata
     ? getSplitSubtitle(transaction.splitMetadata)
     : null
+
+  const splitStatus = transaction.splitMetadata?.split.status
+  const splitColor = splitStatus ? SPLIT_COLORS[splitStatus] : null
 
   return (
     <Card className="flex items-center justify-between group">
@@ -24,14 +29,22 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
         <p className="text-[#F4E9DA] text-sm font-medium truncate">
           {transaction.title}
         </p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-1">
           {transaction.category && (
-            <span className="text-[#9B8778] text-xs">{transaction.category}</span>
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+              style={{ backgroundColor: accentColor }}
+            >
+              {transaction.category}
+            </span>
           )}
-          {transaction.splitMetadata && (
-            <Chip variant={transaction.splitMetadata.split.status === 'settled' ? 'settled' : 'pending'}>
+          {splitColor && (
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+              style={{ backgroundColor: `${splitColor}20`, color: splitColor }}
+            >
               Split
-            </Chip>
+            </span>
           )}
         </div>
         {subtitle && (
@@ -49,11 +62,11 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
             {isExpense ? '-' : '+'}${transaction.amount.toFixed(2)}
           </p>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1.5">
           {onEdit && (
             <button
               onClick={() => onEdit(transaction)}
-              className="p-1.5 text-[#9B8778] hover:text-[#CBB9A7] transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#C99152] text-white hover:bg-[#DBA860] transition-colors"
               title="Edit"
             >
               <Pencil size={14} />
@@ -62,7 +75,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
           {onDelete && (
             <button
               onClick={() => onDelete(transaction)}
-              className="p-1.5 text-[#9B8778] hover:text-[#C7745A] transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#C7745A] text-white hover:bg-[#E0876A] transition-colors"
               title="Delete"
             >
               <Trash2 size={14} />

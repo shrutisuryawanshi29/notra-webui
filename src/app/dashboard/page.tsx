@@ -29,6 +29,19 @@ function getMonthLabel(value: string): string {
   return `${MONTH_LABELS[parseInt(m) - 1]} ${y}`
 }
 
+function getMonthRange(monthKey: string): { monthFrom: string; monthTo: string } {
+  const [y, m] = monthKey.split('-')
+  const year = parseInt(y)
+  const month = parseInt(m) - 1
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    monthFrom: `${firstDay.getFullYear()}-${pad(firstDay.getMonth() + 1)}-${pad(firstDay.getDate())}`,
+    monthTo: `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`,
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { state, loadData } = useCache()
@@ -65,6 +78,7 @@ export default function DashboardPage() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const activeMonth = selectedMonth || (availableMonths.length > 0 ? availableMonths[availableMonths.length - 1].value : currentMonth)
+  const monthRange = useMemo(() => getMonthRange(activeMonth), [activeMonth])
 
   const filteredExpenses = useMemo(
     () => expenses.filter(e => getMonthKey(e.date) === activeMonth),
@@ -257,6 +271,8 @@ export default function DashboardPage() {
             netBalance={netBalance}
             expenseCount={filteredExpenses.length}
             incomeCount={filteredIncomes.length}
+            onExpensesClick={() => router.push(`/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`)}
+            onIncomeClick={() => router.push(`/income?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`)}
           />
 
           <StatusAndChecksGrid
@@ -269,7 +285,13 @@ export default function DashboardPage() {
             uncategorizedCount={uncategorizedCount}
           />
 
-          <MonthlyBudgetGrid items={budgetItems} summary={budgetSummary} />
+          <MonthlyBudgetGrid
+            items={budgetItems}
+            summary={budgetSummary}
+            onCategoryClick={(item) => router.push(
+              `/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}&category=${encodeURIComponent(item.name)}`
+            )}
+          />
 
           <ActivityAndCategoriesGrid
             recentTransactions={recentTransactions}

@@ -38,17 +38,21 @@ export interface UseFiltersReturn {
 export function useFilters(
   transactions: NormalizedTransaction[],
   role: 'expense' | 'income',
+  initialActive?: Partial<ActiveFilters>,
 ): UseFiltersReturn {
   const { state } = useCache()
 
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [draft, setDraft] = useState<FilterDraft>({ columnFilters: [], dateFrom: null, dateTo: null })
-  const [active, setActive] = useState<ActiveFilters>({
-    columnFilters: [],
-    dateFrom: null,
-    dateTo: null,
-    search: '',
-  })
+  const initColFilters = initialActive?.columnFilters || []
+  const initDateFrom = initialActive?.dateFrom || null
+  const initDateTo = initialActive?.dateTo || null
+  const [draft, setDraft] = useState<FilterDraft>({ columnFilters: initColFilters.map(cf => ({ ...cf })), dateFrom: initDateFrom, dateTo: initDateTo })
+  const [active, setActive] = useState<ActiveFilters>(() => ({
+    columnFilters: initColFilters,
+    dateFrom: initDateFrom,
+    dateTo: initDateTo,
+    search: initialActive?.search || '',
+  }))
 
   const relationLookup = useMemo(() => {
     const cat = role === 'expense'

@@ -19,6 +19,7 @@ interface BudgetUtilizationSummary {
 interface MonthlyBudgetGridProps {
   items: BudgetCategoryItem[]
   summary: BudgetUtilizationSummary
+  onCategoryClick?: (item: BudgetCategoryItem) => void
 }
 
 function IconForCategory(name: string): { icon: string; color: string } {
@@ -40,7 +41,7 @@ function IconForCategory(name: string): { icon: string; color: string } {
   return { icon: '🏷️', color: '' }
 }
 
-function BudgetCategoryCard({ item }: { item: BudgetCategoryItem }) {
+function BudgetCategoryCard({ item, onClick }: { item: BudgetCategoryItem; onClick?: () => void }) {
   const { icon } = IconForCategory(item.name)
   const progress = item.utilizationPercent !== null ? Math.min(item.utilizationPercent / 100, 1) : 0
   const statusColor = item.status === 'overBudget' ? '#C7745A'
@@ -53,7 +54,12 @@ function BudgetCategoryCard({ item }: { item: BudgetCategoryItem }) {
     : 'No budget set'
 
   return (
-    <div className="bg-[#362D25] rounded-2xl p-3 border border-[#4C4036] flex flex-col items-center text-center gap-1.5">
+    <div
+      onClick={onClick}
+      className={`bg-[#362D25] rounded-2xl p-3 border border-[#4C4036] flex flex-col items-center text-center gap-1.5 ${
+        onClick ? 'cursor-pointer hover:border-[#C99152] transition-colors' : ''
+      }`}
+    >
       <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg" style={{ backgroundColor: `${statusColor}15` }}>
         {icon}
       </div>
@@ -83,7 +89,7 @@ function BudgetCategoryCard({ item }: { item: BudgetCategoryItem }) {
   )
 }
 
-export default function MonthlyBudgetGrid({ items, summary }: MonthlyBudgetGridProps) {
+export default function MonthlyBudgetGrid({ items, summary, onCategoryClick }: MonthlyBudgetGridProps) {
   const summaryParts: string[] = []
   if (summary.overBudgetCount > 0) summaryParts.push(`${summary.overBudgetCount} over budget`)
   if (summary.warningCount > 0) summaryParts.push(`${summary.warningCount} close`)
@@ -116,7 +122,11 @@ export default function MonthlyBudgetGrid({ items, summary }: MonthlyBudgetGridP
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {items.map(item => (
-          <BudgetCategoryCard key={item.categoryId || item.name} item={item} />
+          <BudgetCategoryCard
+            key={item.categoryId || item.name}
+            item={item}
+            onClick={onCategoryClick ? () => onCategoryClick(item) : undefined}
+          />
         ))}
       </div>
     </section>

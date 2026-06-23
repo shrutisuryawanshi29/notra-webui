@@ -1,19 +1,21 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { isSetupComplete } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import { useFilters } from '@/hooks/use-filters'
 import { NormalizedTransaction } from '@/types/transaction'
+import { ColumnFilter } from '@/types/filters'
 import TransactionList from '@/components/TransactionList'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import FilterBar from '@/components/FilterBar'
 import FilterSheet from '@/components/FilterSheet'
 import { RefreshCw, Plus } from 'lucide-react'
 
-export default function IncomePage() {
+function IncomePageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { state, loadData } = useCache()
 
   useEffect(() => {
@@ -21,6 +23,29 @@ export default function IncomePage() {
       router.replace('/setup')
     }
   }, [router])
+
+  const initialFilters = useMemo(() => {
+    const monthFrom = searchParams?.get('monthFrom')
+    const monthTo = searchParams?.get('monthTo')
+    const category = searchParams?.get('category')
+
+    const colFilters: ColumnFilter[] = []
+    if (category) {
+      colFilters.push({
+        id: 'init_cat',
+        columnName: 'Category',
+        columnType: 'select',
+        operator: 'equals',
+        value: category,
+      })
+    }
+
+    return {
+      dateFrom: monthFrom || null,
+      dateTo: monthTo || null,
+      columnFilters: colFilters,
+    }
+  }, [searchParams])
 
   const {
     draft,
@@ -43,7 +68,7 @@ export default function IncomePage() {
     updateDateFrom,
     updateDateTo,
     updateSearch,
-  } = useFilters(state.incomes, 'income')
+  } = useFilters(state.incomes, 'income', initialFilters)
 
   const relationLookup = useMemo(
     () => ({ ...(state.incomeRelationCategoryLookup || {}), ...(state.incomeMonthClassificationLookup || {}) }),
@@ -139,5 +164,20 @@ export default function IncomePage() {
         columnOptions={columnOptions}
       />
     </div>
+  )
+}
+
+export default function IncomePage() {
+  return (
+    <Suspense fallback={
+      <div className="p-5 max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-[#EDE1D1] text-2xl font-bold">Income</h1>
+        </div>
+        <LoadingSpinner />
+      </div>
+    }>
+      <IncomePageContent />
+    </Suspense>
   )
 }

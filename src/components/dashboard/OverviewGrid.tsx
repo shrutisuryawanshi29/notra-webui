@@ -9,6 +9,8 @@ interface OverviewGridProps {
   netBalance: number
   expenseCount: number
   incomeCount: number
+  onExpensesClick?: () => void
+  onIncomeClick?: () => void
 }
 
 export default function OverviewGrid({
@@ -17,6 +19,8 @@ export default function OverviewGrid({
   netBalance,
   expenseCount,
   incomeCount,
+  onExpensesClick,
+  onIncomeClick,
 }: OverviewGridProps) {
   return (
     <section>
@@ -31,6 +35,7 @@ export default function OverviewGrid({
           subtitle={`${expenseCount} transactions`}
           color="text-[#C7745A]"
           bgClass="bg-[#C7745A]/10"
+          onClick={onExpensesClick}
         />
         <OverviewCard
           icon={<TrendingUp size={20} className="text-[#8CA37D]" />}
@@ -39,6 +44,7 @@ export default function OverviewGrid({
           subtitle={`${incomeCount} transactions`}
           color="text-[#8CA37D]"
           bgClass="bg-[#8CA37D]/10"
+          onClick={onIncomeClick}
         />
         <OverviewCard
           icon={
