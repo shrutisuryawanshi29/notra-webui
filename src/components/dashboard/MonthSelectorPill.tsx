@@ -39,7 +39,7 @@ export default function MonthSelectorPill({ months, selectedMonth, onChange }: M
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#40342B] text-[#C99152] text-xs font-medium hover:bg-[#4C4036] transition-colors"
+        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#403027] text-[#D49A4A] text-xs font-medium hover:bg-[#6B5847] transition-colors"
       >
         {displayLabel}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`mt-0.5 transition-transform ${open ? 'rotate-180' : ''}`}>
@@ -48,15 +48,15 @@ export default function MonthSelectorPill({ months, selectedMonth, onChange }: M
       </button>
 
       {open && (
-        <div className="absolute left-0 mt-1 w-44 bg-[#362D25] border border-[#4C4036] rounded-xl shadow-xl z-50 overflow-hidden">
+        <div className="absolute left-0 mt-1 w-44 bg-[#35281F] border border-[#6B5847] rounded-xl shadow-xl z-50 overflow-hidden">
           {months.map(m => (
             <button
               key={m.value}
               onClick={() => { onChange(m.value); setOpen(false) }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                 m.value === selectedMonth
-                  ? 'bg-[#C99152]/10 text-[#C99152] font-medium'
-                  : 'text-[#F4E9DA] hover:bg-[#40342B]'
+                  ? 'bg-[#D49A4A]/10 text-[#D49A4A] font-medium'
+                  : 'text-[#F4EDE3] hover:bg-[#403027]'
               }`}
             >
               {m.label}

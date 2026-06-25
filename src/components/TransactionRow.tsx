@@ -9,12 +9,12 @@ interface TransactionRowProps {
   onDelete?: (t: NormalizedTransaction) => void
 }
 
-const SPLIT_COLORS = { pending: '#C49A5A', settled: '#8CA37D' }
+const SPLIT_COLORS = { pending: '#D49A4A', settled: '#93B889' }
 
 export default function TransactionRow({ transaction, onEdit, onDelete }: TransactionRowProps) {
   const isExpense = transaction.databaseRole === 'expense'
-  const accentColor = isExpense ? '#C7745A' : '#8CA37D'
-  const color = isExpense ? 'text-[#C7745A]' : 'text-[#8CA37D]'
+  const accentColor = isExpense ? '#D8755D' : '#93B889'
+  const color = isExpense ? 'text-[#D8755D]' : 'text-[#93B889]'
 
   const subtitle = transaction.splitMetadata
     ? getSplitSubtitle(transaction.splitMetadata)
@@ -26,7 +26,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
   return (
     <Card className="flex items-center justify-between group">
       <div className="flex-1 min-w-0">
-        <p className="text-[#F4E9DA] text-sm font-medium truncate">
+        <p className="text-[#F4EDE3] text-sm font-medium truncate">
           {transaction.title}
         </p>
         <div className="flex items-center gap-2 mt-1">
@@ -48,10 +48,10 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
           )}
         </div>
         {subtitle && (
-          <p className="text-[#CBB9A7] text-xs mt-0.5">{subtitle}</p>
+          <p className="text-[#B8A99A] text-xs mt-0.5">{subtitle}</p>
         )}
         {transaction.paidAmount && (
-          <p className="text-[#9B8778] text-xs mt-0.5">
+          <p className="text-[#B8A99A] text-xs mt-0.5">
             Paid: ${transaction.paidAmount.toFixed(2)}
           </p>
         )}
@@ -66,7 +66,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
           {onEdit && (
             <button
               onClick={() => onEdit(transaction)}
-              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#C99152] text-white hover:bg-[#DBA860] transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#D49A4A] text-white hover:bg-[#C1883A] transition-colors"
               title="Edit"
             >
               <Pencil size={14} />
@@ -75,7 +75,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
           {onDelete && (
             <button
               onClick={() => onDelete(transaction)}
-              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#C7745A] text-white hover:bg-[#E0876A] transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#D8755D] text-white hover:bg-[#B05E4A] transition-colors"
               title="Delete"
             >
               <Trash2 size={14} />

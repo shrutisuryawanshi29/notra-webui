@@ -18,23 +18,23 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
                 isActive
-                  ? 'bg-[#C99152] text-white'
+                  ? 'bg-[#D49A4A] text-white'
                   : isPast
-                  ? 'bg-[#8CA37D] text-white'
-                  : 'bg-[#40342B] text-[#9B8778]'
+                  ? 'bg-[#93B889] text-white'
+                  : 'bg-[#FBF8F4] text-[#6F6A73]'
               }`}
             >
               {isPast ? '✓' : i + 1}
             </div>
             <span
               className={`text-xs hidden sm:inline ${
-                isActive ? 'text-[#C99152] font-medium' : isPast ? 'text-[#9B8778]' : 'text-[#9B8778]'
+                isActive ? 'text-[#D49A4A] font-medium' : isPast ? 'text-[#6F6A73]' : 'text-[#6F6A73]'
               }`}
             >
               {step}
             </span>
             {i < steps.length - 1 && (
-              <div className={`w-6 h-px ${isPast ? 'bg-[#8CA37D]' : 'bg-[#4C4036]'}`} />
+              <div className={`w-6 h-px ${isPast ? 'bg-[#93B889]' : 'bg-[#5A4638]'}`} />
             )}
           </div>
         )

@@ -1,29 +1,51 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isSetupComplete } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
-import { NormalizedTransaction } from '@/types/transaction'
-import Card from '@/components/Card'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import IconButton from '@/components/dashboard/IconButton'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 
-interface CategorySummary {
-  name: string
-  spent: number
-  count: number
-}
+import AnalyticsFilterBar from '@/components/analytics/AnalyticsFilterBar'
+import SummaryCards from '@/components/analytics/SummaryCards'
+import IncomeVsExpenseChart from '@/components/analytics/IncomeVsExpenseChart'
+import ExpenseCategoryBreakdown from '@/components/analytics/ExpenseCategoryBreakdown'
+import IncomeCategoryBreakdown from '@/components/analytics/IncomeCategoryBreakdown'
+import SpendingTrend from '@/components/analytics/SpendingTrend'
+import TopSpendingCategories from '@/components/analytics/TopSpendingCategories'
+import BiggestTransactions from '@/components/analytics/BiggestTransactions'
+import MonthOverMonthComparison from '@/components/analytics/MonthOverMonthComparison'
+import SmartInsights from '@/components/analytics/SmartInsights'
+import FilteredTransactionsTable from '@/components/analytics/FilteredTransactionsTable'
 
-interface MonthlySummary {
-  month: string
-  spend: number
-  income: number
-  net: number
-}
+import {
+  availableMonths,
+  getDefaultScope,
+  filterByScope,
+  totalIncome,
+  totalExpenses,
+  netBalance,
+  savingsRate,
+  totalTransactions,
+  averageDailySpend,
+  expensesByCategory,
+  incomeByCategory,
+  groupByDay,
+  groupByMonth,
+  biggestExpense,
+  biggestIncome,
+  topSpendingCategories,
+  monthOverMonthComparison,
+  generateInsights,
+  AnalyticsScope,
+} from '@/lib/analytics'
 
 export default function AnalyticsPage() {
   const router = useRouter()
   const { state } = useCache()
+  const { expenses, incomes, loading } = state
 
   useEffect(() => {
     if (!isSetupComplete()) {
@@ -31,221 +53,147 @@ export default function AnalyticsPage() {
     }
   }, [router])
 
-  const categoryData = useMemo(() => {
-    const map = new Map<string, { spent: number; count: number }>()
-    for (const e of state.expenses) {
-      const cat = e.category || 'Uncategorized'
-      const existing = map.get(cat) || { spent: 0, count: 0 }
-      existing.spent += e.amount
-      existing.count += 1
-      map.set(cat, existing)
+  const allTransactions = useMemo(() => [...expenses, ...incomes], [expenses, incomes])
+
+  const monthKeys = useMemo(() => availableMonths(expenses, incomes), [expenses, incomes])
+
+  const [scope, setScope] = useState<AnalyticsScope>({ type: 'all' })
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (scope.type === 'all' && monthKeys.length > 0) {
+      setScope(getDefaultScope(expenses, incomes))
     }
-    return Array.from(map.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.spent - a.spent)
-  }, [state.expenses])
+  }, [monthKeys.length, expenses, incomes])
 
-  const incomeCategoryData = useMemo(() => {
-    const map = new Map<string, { total: number; count: number }>()
-    for (const i of state.incomes) {
-      const cat = i.category || 'Uncategorized'
-      const existing = map.get(cat) || { total: 0, count: 0 }
-      existing.total += i.amount
-      existing.count += 1
-      map.set(cat, existing)
-    }
-    return Array.from(map.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.total - a.total)
-  }, [state.incomes])
+  const initialLoadDone = useMemo(
+    () => scope.type !== 'all' || monthKeys.length === 0,
+    [scope, monthKeys]
+  )
 
-  const monthlyData = useMemo(() => {
-    const map = new Map<string, { spend: number; income: number }>()
+  const filteredTransactions = useMemo(() => filterByScope(allTransactions, scope), [allTransactions, scope])
 
-    const getMonthKey = (dateStr: string) => {
-      const d = new Date(dateStr + 'T12:00:00Z')
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    }
+  const filteredWithCategory = useMemo(() => {
+    if (!categoryFilter) return filteredTransactions
+    return filteredTransactions.filter(t => t.category === categoryFilter)
+  }, [filteredTransactions, categoryFilter])
 
-    for (const e of state.expenses) {
-      const key = getMonthKey(e.date)
-      const existing = map.get(key) || { spend: 0, income: 0 }
-      existing.spend += e.amount
-      map.set(key, existing)
-    }
-    for (const i of state.incomes) {
-      const key = getMonthKey(i.date)
-      const existing = map.get(key) || { spend: 0, income: 0 }
-      existing.income += i.amount
-      map.set(key, existing)
-    }
+  const inc = useMemo(() => totalIncome(filteredTransactions), [filteredTransactions])
+  const exp = useMemo(() => totalExpenses(filteredTransactions), [filteredTransactions])
+  const net = useMemo(() => netBalance(filteredTransactions), [filteredTransactions])
+  const sr = useMemo(() => savingsRate(filteredTransactions), [filteredTransactions])
+  const txnCount = useMemo(() => totalTransactions(filteredTransactions), [filteredTransactions])
+  const avgDaily = useMemo(() => averageDailySpend(filteredTransactions, scope, allTransactions), [filteredTransactions, scope, allTransactions])
 
-    return Array.from(map.entries())
-      .map(([month, data]) => ({
-        month,
-        ...data,
-        net: data.income - data.spend,
-      }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-  }, [state.expenses, state.incomes])
+  const expCategories = useMemo(() => expensesByCategory(filteredTransactions), [filteredTransactions])
+  const incCategories = useMemo(() => incomeByCategory(filteredTransactions), [filteredTransactions])
+  const dailyData = useMemo(() => groupByDay(filteredTransactions), [filteredTransactions])
+  const monthlyData = useMemo(() => groupByMonth(allTransactions), [allTransactions])
+  const biggestExp = useMemo(() => biggestExpense(filteredTransactions), [filteredTransactions])
+  const biggestInc = useMemo(() => biggestIncome(filteredTransactions), [filteredTransactions])
+  const topCategories = useMemo(() => topSpendingCategories(filteredTransactions, 5), [filteredTransactions])
+  const momComparison = useMemo(() => monthOverMonthComparison(allTransactions, scope), [allTransactions, scope])
+  const insights = useMemo(() => generateInsights(allTransactions, scope, allTransactions), [allTransactions, scope])
 
-  const totalSpend = state.expenses.reduce((s, e) => s + e.amount, 0)
-  const totalIncome = state.incomes.reduce((s, e) => s + e.amount, 0)
-  const totalExpenseCount = state.expenses.length
-  const totalIncomeCount = state.incomes.length
+  const tableIncome = useMemo(() => totalIncome(filteredWithCategory), [filteredWithCategory])
+  const tableExpenses = useMemo(() => totalExpenses(filteredWithCategory), [filteredWithCategory])
 
-  if (state.loading && state.expenses.length === 0 && state.incomes.length === 0) {
+  if (loading && allTransactions.length === 0) {
     return (
-      <div className="p-5 max-w-5xl mx-auto">
-        <h1 className="text-[#EDE1D1] text-2xl font-bold mb-6">Analytics</h1>
+      <div className="min-h-screen bg-[#1F1712] flex items-center justify-center">
         <LoadingSpinner />
       </div>
     )
   }
 
   return (
-    <div className="p-5 max-w-5xl mx-auto">
-      <h1 className="text-[#EDE1D1] text-2xl font-bold mb-6">Analytics</h1>
+    <div className="min-h-screen bg-[#1F1712]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 pb-28 md:pb-8 space-y-6 md:space-y-8">
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <p className="text-[#CBB9A7] text-xs">Total Spend</p>
-          <p className="text-[#C7745A] text-xl font-bold mt-1">
-            ${totalSpend.toFixed(2)}
-          </p>
-          <p className="text-[#9B8778] text-xs">{totalExpenseCount} txns</p>
-        </Card>
-        <Card>
-          <p className="text-[#CBB9A7] text-xs">Total Income</p>
-          <p className="text-[#8CA37D] text-xl font-bold mt-1">
-            ${totalIncome.toFixed(2)}
-          </p>
-          <p className="text-[#9B8778] text-xs">{totalIncomeCount} txns</p>
-        </Card>
-        <Card>
-          <p className="text-[#CBB9A7] text-xs">Net Balance</p>
-          <p className={`text-xl font-bold mt-1 ${totalIncome - totalSpend >= 0 ? 'text-[#8CA37D]' : 'text-[#C7745A]'}`}>
-            ${(totalIncome - totalSpend).toFixed(2)}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-[#CBB9A7] text-xs">Avg Expense</p>
-          <p className="text-[#F4E9DA] text-xl font-bold mt-1">
-            ${totalExpenseCount > 0 ? (totalSpend / totalExpenseCount).toFixed(2) : '0.00'}
-          </p>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <Card>
-          <h2 className="text-[#F4E9DA] text-sm font-semibold mb-3">
-            Expenses by Category
-          </h2>
-          {categoryData.length === 0 ? (
-            <p className="text-[#9B8778] text-xs">No expense data</p>
-          ) : (
-            <div className="space-y-2">
-              {categoryData.slice(0, 8).map((cat) => {
-                const pct = totalSpend > 0 ? (cat.spent / totalSpend) * 100 : 0
-                return (
-                  <div key={cat.name}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-[#CBB9A7]">{cat.name}</span>
-                      <span className="text-[#C7745A]">
-                        ${cat.spent.toFixed(2)} ({pct.toFixed(0)}%)
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-[#40342B] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#C7745A] rounded-full"
-                        style={{ width: `${Math.min(pct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <h2 className="text-[#F4E9DA] text-sm font-semibold mb-3">
-            Income by Category
-          </h2>
-          {incomeCategoryData.length === 0 ? (
-            <p className="text-[#9B8778] text-xs">No income data</p>
-          ) : (
-            <div className="space-y-2">
-              {incomeCategoryData.slice(0, 8).map((cat) => {
-                const pct = totalIncome > 0 ? (cat.total / totalIncome) * 100 : 0
-                return (
-                  <div key={cat.name}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-[#CBB9A7]">{cat.name}</span>
-                      <span className="text-[#8CA37D]">
-                        ${cat.total.toFixed(2)} ({pct.toFixed(0)}%)
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-[#40342B] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#8CA37D] rounded-full"
-                        style={{ width: `${Math.min(pct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card>
-        <h2 className="text-[#F4E9DA] text-sm font-semibold mb-3">
-          Monthly Summary
-        </h2>
-        {monthlyData.length === 0 ? (
-          <p className="text-[#9B8778] text-xs">No data available</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[#9B8778] border-b border-[#4C4036]">
-                  <th className="text-left py-2 pr-3">Month</th>
-                  <th className="text-right py-2 px-3">Spend</th>
-                  <th className="text-right py-2 px-3">Income</th>
-                  <th className="text-right py-2 pl-3">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyData.map((m) => {
-                  const [y, mo] = m.month.split('-')
-                  const date = new Date(parseInt(y), parseInt(mo) - 1)
-                  const label = date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    year: 'numeric',
-                    timeZone: 'UTC',
-                  })
-                  return (
-                    <tr key={m.month} className="border-b border-[#4C4036]/50">
-                      <td className="py-2 pr-3 text-[#CBB9A7]">{label}</td>
-                      <td className="py-2 px-3 text-right text-[#C7745A]">
-                        ${m.spend.toFixed(2)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-[#8CA37D]">
-                        ${m.income.toFixed(2)}
-                      </td>
-                      <td className={`py-2 pl-3 text-right font-medium ${m.net >= 0 ? 'text-[#8CA37D]' : 'text-[#C7745A]'}`}>
-                        ${m.net.toFixed(2)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="w-9 h-9 rounded-full bg-[#403027] flex items-center justify-center text-[#B8A99A] hover:text-[#F4EDE3] hover:bg-[#6B5847] transition-colors"
+            >
+              <ArrowLeft size={18} />
+            </button>
           </div>
-        )}
-      </Card>
+          <IconButton onClick={() => window.location.reload()}>
+            <RefreshCw size={18} />
+          </IconButton>
+        </div>
+
+        <AnalyticsFilterBar
+          scope={scope}
+          onScopeChange={(s) => { setScope(s); setCategoryFilter(null) }}
+          availableMonthKeys={monthKeys}
+          transactionCount={txnCount}
+        />
+
+        <SummaryCards
+          totalIncome={inc}
+          totalExpenses={exp}
+          netBalance={net}
+          savingsRate={sr}
+          totalTransactions={txnCount}
+          averageDailySpend={avgDaily}
+          scope={scope}
+        />
+
+        <IncomeVsExpenseChart
+          dailyData={dailyData}
+          monthlyData={monthlyData}
+          scope={scope}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+          <ExpenseCategoryBreakdown
+            categories={expCategories}
+            onCategoryClick={(name) => setCategoryFilter(name === categoryFilter ? null : name)}
+          />
+          <IncomeCategoryBreakdown
+            categories={incCategories}
+            totalIncome={inc}
+            onCategoryClick={(name) => setCategoryFilter(name === categoryFilter ? null : name)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+          <SpendingTrend
+            dailyData={dailyData}
+            monthlyData={monthlyData}
+            scope={scope}
+            allExpenses={exp}
+          />
+          <TopSpendingCategories
+            categories={topCategories}
+            totalExpenses={exp}
+          />
+        </div>
+
+        <BiggestTransactions
+          biggestExpense={biggestExp}
+          biggestIncome={biggestInc}
+        />
+
+        <MonthOverMonthComparison
+          comparison={momComparison}
+        />
+
+        <SmartInsights
+          insights={insights}
+        />
+
+        <FilteredTransactionsTable
+          transactions={filteredWithCategory}
+          activeCategoryFilter={categoryFilter}
+          onCategoryFilter={setCategoryFilter}
+          totalIncome={tableIncome}
+          totalExpenses={tableExpenses}
+        />
+
+      </div>
     </div>
   )
 }

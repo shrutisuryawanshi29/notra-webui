@@ -31,10 +31,10 @@ interface MappingFieldConfig {
 }
 
 const FIELDS: MappingFieldConfig[] = [
-  { key: 'titleColumn', label: 'Title', iconName: 'text-alignleft', iconColor: '#C99152', compatibleTypes: COMPATIBLE_TYPES.title },
-  { key: 'amountColumn', label: 'Amount', iconName: 'dollarsign.circle', iconColor: '#C7745A', compatibleTypes: COMPATIBLE_TYPES.amount },
+  { key: 'titleColumn', label: 'Title', iconName: 'text-alignleft', iconColor: '#D49A4A', compatibleTypes: COMPATIBLE_TYPES.title },
+  { key: 'amountColumn', label: 'Amount', iconName: 'dollarsign.circle', iconColor: '#D8755D', compatibleTypes: COMPATIBLE_TYPES.amount },
   { key: 'categoryColumn', label: 'Category', iconName: 'tag', iconColor: '#A88B73', compatibleTypes: COMPATIBLE_TYPES.category },
-  { key: 'dateColumn', label: 'Date', iconName: 'calendar', iconColor: '#8CA37D', compatibleTypes: COMPATIBLE_TYPES.date },
+  { key: 'dateColumn', label: 'Date', iconName: 'calendar', iconColor: '#93B889', compatibleTypes: COMPATIBLE_TYPES.date },
   { key: 'monthClassificationColumn', label: 'Month Classification', iconName: 'calendar.clock', iconColor: '#6B9B8B', compatibleTypes: COMPATIBLE_TYPES.monthClassification, showInfo: false },
   { key: 'expenseAppMetadataProperty', label: 'Split Details', iconName: 'square.and.pencil', iconColor: '#9B8778', compatibleTypes: COMPATIBLE_TYPES.appMetadata, showInfo: true },
 ]
@@ -189,11 +189,11 @@ export default function MappingDetailPage() {
       <StepIndicator steps={STEPS} currentStep="Mapping" />
       <Card className="p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={role === 'expense' ? '#C7745A' : '#8CA37D'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={role === 'expense' ? '#D8755D' : '#93B889'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d={role === 'expense' ? 'M12 5v14M19 12l-7 7-7-7' : 'M12 19V5M5 12l7-7 7 7'} />
           </svg>
           <div>
-            <h2 className="text-[#F4E9DA] text-lg font-semibold">
+            <h2 className="text-[#F4EDE3] text-lg font-semibold">
               Map {role === 'expense' ? 'Expense' : 'Income'} Columns
             </h2>
             <p className="text-[#9B8778] text-xs">{database.title}</p>
@@ -217,18 +217,18 @@ export default function MappingDetailPage() {
                       if (field.showInfo) setShowSplitInfo(true)
                       setPickerField(field)
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#332A23] hover:bg-[#40342B] transition-colors border border-[#4C4036]"
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#35281F] hover:bg-[#403027] transition-colors border border-[#5A4638]"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={field.iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
                       <path d={FIELD_ICONS[field.iconName] || 'M12 5v14'} />
                     </svg>
-                    <span className="text-[#F4E9DA] text-sm font-medium min-w-[80px] text-left">
+                    <span className="text-[#F4EDE3] text-sm font-medium min-w-[80px] text-left">
                       {field.label}
                     </span>
                     {field.showInfo && (
                       <span
                         onClick={e => { e.stopPropagation(); setShowSplitInfo(true) }}
-                        className="text-[#9B8778] hover:text-[#C99152] transition-colors flex-shrink-0 cursor-pointer"
+                        className="text-[#9B8778] hover:text-[#D49A4A] transition-colors flex-shrink-0 cursor-pointer"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
@@ -236,7 +236,7 @@ export default function MappingDetailPage() {
                       </span>
                     )}
                     <span className={`flex-1 text-right text-sm truncate ${
-                      currentValue ? 'text-[#F4E9DA]' : 'text-[#5C4D42]'
+                      currentValue ? 'text-[#F4EDE3]' : 'text-[#5C4D42]'
                     }`}>
                       {currentValue || 'Not selected'}
                     </span>
@@ -250,12 +250,12 @@ export default function MappingDetailPage() {
           </div>
         )}
 
-        {error && <p className="text-[#C7745A] text-xs">{error}</p>}
+        {error && <p className="text-[#D8755D] text-xs">{error}</p>}
 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full flex items-center justify-center gap-2 bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6L9 17l-5-5" />
@@ -283,15 +283,15 @@ export default function MappingDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowSplitInfo(false)} />
           <Card className="relative mx-4 p-6 max-w-sm space-y-3">
-            <h3 className="text-[#F4E9DA] text-base font-semibold">Split Expense Details</h3>
+            <h3 className="text-[#F4EDE3] text-base font-semibold">Split Expense Details</h3>
             <p className="text-[#9B8778] text-xs leading-relaxed">
               Notra can track shared expenses. For example, if you pay $100 for groceries but your share is $50, Notra will count $50 toward your spending while remembering that you paid $100 total.
             </p>
             <p className="text-[#9B8778] text-xs leading-relaxed">
               To keep split details after the app restarts, add one optional Text column to your Expense database.
             </p>
-            <p className="text-[#CBB9A7] text-xs">
-              Recommended: Column name: <span className="text-[#C99152] font-medium">Split Details</span>, Type: Text
+            <p className="text-[#B8A99A] text-xs">
+              Recommended: Column name: <span className="text-[#D49A4A] font-medium">Split Details</span>, Type: Text
             </p>
             <p className="text-[#9B8778] text-xs leading-relaxed">
               Notra stores small metadata in this column. You can hide this column in your Notion view.
@@ -302,13 +302,13 @@ export default function MappingDetailPage() {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => { navigator.clipboard.writeText('Split Details'); setShowSplitInfo(false) }}
-                className="flex-1 bg-[#40342B] text-[#C99152] rounded-lg py-2 text-sm font-medium hover:bg-[#4C4036] transition-colors"
+                className="flex-1 bg-[#403027] text-[#D49A4A] rounded-lg py-2 text-sm font-medium hover:bg-[#5A4638] transition-colors"
               >
                 Copy &ldquo;Split Details&rdquo;
               </button>
               <button
                 onClick={() => setShowSplitInfo(false)}
-                className="flex-1 bg-[#C99152] text-white rounded-lg py-2 text-sm font-medium hover:bg-[#A97845] transition-colors"
+                className="flex-1 bg-[#D49A4A] text-white rounded-lg py-2 text-sm font-medium hover:bg-[#C1883A] transition-colors"
               >
                 Got it
               </button>

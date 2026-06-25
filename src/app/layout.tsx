@@ -15,10 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex">
+      <body className="min-h-full">
         <CacheProvider>
           <Nav />
-          <main className="flex-1 bg-[#2B241E] min-h-screen pb-20 md:pb-0">
+          <main className="min-h-screen">
             {children}
           </main>
         </CacheProvider>

@@ -14,7 +14,7 @@ export default function DashboardHeader({ onSettings, onRefresh }: DashboardHead
       <IconButton onClick={onSettings}>
         <Settings size={18} />
       </IconButton>
-      <h1 className="text-[#EDE1D1] text-lg font-semibold">Dashboard</h1>
+      <h1 className="text-[#F4EDE3] text-lg font-semibold">Dashboard</h1>
       <IconButton onClick={onRefresh}>
         <RefreshCw size={18} />
       </IconButton>

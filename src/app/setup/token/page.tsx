@@ -83,7 +83,7 @@ export default function TokenStep() {
     <div>
       <StepIndicator steps={STEPS} currentStep="Token" />
       <Card className="p-6 space-y-4">
-        <h2 className="text-[#F4E9DA] text-lg font-semibold">Notion Integration Token</h2>
+        <h2 className="text-[#F4EDE3] text-lg font-semibold">Notion Integration Token</h2>
         <p className="text-[#9B8778] text-xs">
           Paste your Notion integration token to connect Notra.
         </p>
@@ -93,17 +93,17 @@ export default function TokenStep() {
             value={token}
             onChange={e => setToken(e.target.value)}
             placeholder="ntn_..."
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+            className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#5A4638] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
           />
           <button
             onClick={handleTest}
             disabled={testing || !token.trim()}
-            className="mt-2 text-xs text-[#C99152] hover:text-[#A97845] disabled:text-[#9B8778]"
+            className="mt-2 text-xs text-[#D49A4A] hover:text-[#C1883A] disabled:text-[#9B8778]"
           >
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
           {testResult !== 'idle' && (
-            <p className={`text-xs mt-1 ${testResult === 'success' ? 'text-[#8CA37D]' : 'text-[#C7745A]'}`}>
+            <p className={`text-xs mt-1 ${testResult === 'success' ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
               {testMessage}
             </p>
           )}
@@ -111,7 +111,7 @@ export default function TokenStep() {
         <button
           onClick={handleContinue}
           disabled={!token.trim()}
-          className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Continue
         </button>

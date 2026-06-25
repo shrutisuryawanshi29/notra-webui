@@ -137,7 +137,7 @@ export default function RolesStep() {
       <Card className="p-6 space-y-4">
         <div className="flex items-start gap-2">
           <div className="flex-1">
-            <h2 className="text-[#F4E9DA] text-lg font-semibold">Assign Database Roles</h2>
+            <h2 className="text-[#F4EDE3] text-lg font-semibold">Assign Database Roles</h2>
             <p className="text-[#9B8778] text-xs mt-1">
               Tell Notra how to categorize each database in your page
             </p>
@@ -146,17 +146,17 @@ export default function RolesStep() {
 
         {loading && (
           <div className="flex justify-center py-6">
-            <div className="w-6 h-6 border-2 border-[#C99152] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#D49A4A] border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
         {error && (
-          <p className="text-[#C7745A] text-xs whitespace-pre-line">{error}</p>
+          <p className="text-[#D8755D] text-xs whitespace-pre-line">{error}</p>
         )}
 
         {permissionInfo && (
-          <div className="bg-[#332A23] rounded-xl p-3 border border-[#4C4036]">
-            <p className="text-[#CBB9A7] text-xs whitespace-pre-line">{permissionInfo}</p>
+          <div className="bg-[#35281F] rounded-xl p-3 border border-[#5A4638]">
+            <p className="text-[#B8A99A] text-xs whitespace-pre-line">{permissionInfo}</p>
           </div>
         )}
 
@@ -169,8 +169,8 @@ export default function RolesStep() {
         {!loading && databases.length > 0 && (
           <div className="space-y-2">
             {databases.map(db => (
-              <div key={db.id} className="bg-[#332A23] rounded-xl p-3 border border-[#4C4036]">
-                <p className="text-[#F4E9DA] text-sm font-medium mb-2 truncate">{db.title}</p>
+              <div key={db.id} className="bg-[#35281F] rounded-xl p-3 border border-[#5A4638]">
+                <p className="text-[#F4EDE3] text-sm font-medium mb-2 truncate">{db.title}</p>
                 <div className="flex gap-1.5">
                   {ROLES.map(role => (
                     <button
@@ -179,11 +179,11 @@ export default function RolesStep() {
                       className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         db.role === role
                           ? role === 'expense'
-                            ? 'bg-[#C7745A] text-white'
+                            ? 'bg-[#D8755D] text-white'
                             : role === 'income'
-                            ? 'bg-[#8CA37D] text-white'
-                            : 'bg-[#4C4036] text-[#CBB9A7]'
-                          : 'bg-[#40342B] text-[#9B8778] hover:text-[#CBB9A7]'
+                            ? 'bg-[#93B889] text-white'
+                            : 'bg-[#5A4638] text-[#B8A99A]'
+                          : 'bg-[#403027] text-[#9B8778] hover:text-[#B8A99A]'
                       }`}
                     >
                       {role === 'expense' ? 'Expense' : role === 'income' ? 'Income' : 'Ignore'}
@@ -198,7 +198,7 @@ export default function RolesStep() {
         <button
           onClick={handleContinue}
           disabled={loading || saving || databases.length === 0}
-          className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? 'Saving...' : 'Continue'}
         </button>

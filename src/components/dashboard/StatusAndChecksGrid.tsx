@@ -48,17 +48,17 @@ export default function StatusAndChecksGrid({
 
   const isPositive = netBalance >= 0 && hasIncome
   const isNegative = netBalance < 0 && hasIncome
-  const iconBgColor = isPositive ? 'bg-[#8CA37D]' : isNegative ? 'bg-[#C7745A]' : 'bg-[#C99152]'
-  const mainTextColor = isPositive ? 'text-[#8CA37D]' : isNegative ? 'text-[#C7745A]' : 'text-[#F4E9DA]'
+  const iconBgColor = isPositive ? 'bg-[#93B889]' : isNegative ? 'bg-[#D8755D]' : 'bg-[#D49A4A]'
+  const mainTextColor = isPositive ? 'text-[#93B889]' : isNegative ? 'text-[#D8755D]' : 'text-[#F4EDE3]'
 
   return (
     <section>
-      <h3 className="text-[#CBB9A7] text-xs font-semibold uppercase tracking-wider mb-3">
+      <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
         This Month Status
       </h3>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Status */}
-        <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036] space-y-3">
+        <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847] space-y-3">
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center ${iconBgColor}`}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -67,7 +67,7 @@ export default function StatusAndChecksGrid({
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[#F4E9DA] text-base font-semibold leading-tight">
+              <p className="text-[#F4EDE3] text-base font-semibold leading-tight">
                 {mainText}
               </p>
               <p className={`text-sm font-medium mt-0.5 ${mainTextColor}`}>
@@ -76,25 +76,25 @@ export default function StatusAndChecksGrid({
             </div>
           </div>
           {hasIncome && (
-            <div className="h-2 bg-[#40342B] rounded-full overflow-hidden">
+            <div className="h-2 bg-[#403027] rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full ${isPositive ? 'bg-[#8CA37D]' : 'bg-[#C7745A]'}`}
+                className={`h-full rounded-full ${isPositive ? 'bg-[#93B889]' : 'bg-[#D8755D]'}`}
                 style={{ width: `${Math.min(Math.abs(savingsRate), 100)}%` }}
               />
             </div>
           )}
-          <p className="text-[#9B8778] text-xs">{footerText}</p>
+          <p className="text-[#B8A99A] text-xs">{footerText}</p>
         </div>
 
         {/* Quick Checks */}
-        <div className="bg-[#362D25] rounded-2xl p-4 border border-[#4C4036] space-y-3">
+        <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847] space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#C7745A]/10 flex items-center justify-center">
-              <Receipt size={14} className="text-[#C7745A]" />
+            <div className="w-8 h-8 rounded-lg bg-[#D8755D]/10 flex items-center justify-center">
+              <Receipt size={14} className="text-[#D8755D]" />
             </div>
             <div className="flex-1">
-              <p className="text-[#CBB9A7] text-xs">Largest Expense</p>
-              <p className="text-[#F4E9DA] text-sm font-medium">
+              <p className="text-[#B8A99A] text-xs">Largest Expense</p>
+              <p className="text-[#F4EDE3] text-sm font-medium">
                 {largestExpense
                   ? `$${largestExpense.amount.toFixed(2)} — ${largestExpense.title || 'Untitled'}`
                   : 'No expenses'
@@ -103,27 +103,27 @@ export default function StatusAndChecksGrid({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#C99152]/10 flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C99152" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-8 h-8 rounded-lg bg-[#D49A4A]/10 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D49A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01" />
               </svg>
             </div>
             <div className="flex-1">
-              <p className="text-[#CBB9A7] text-xs">Most Used Category</p>
-              <p className="text-[#F4E9DA] text-sm font-medium">
+              <p className="text-[#B8A99A] text-xs">Most Used Category</p>
+              <p className="text-[#F4EDE3] text-sm font-medium">
                 {mostUsedCategory ? `${mostUsedCategory.name} (${mostUsedCategory.count}x)` : 'No expenses'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#9B8778]/10 flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9B8778" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-8 h-8 rounded-lg bg-[#B8A99A]/10 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B8A99A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
               </svg>
             </div>
             <div className="flex-1">
-              <p className="text-[#CBB9A7] text-xs">Uncategorized</p>
-              <p className="text-[#F4E9DA] text-sm font-medium">
+              <p className="text-[#B8A99A] text-xs">Uncategorized</p>
+              <p className="text-[#F4EDE3] text-sm font-medium">
                 {uncategorizedCount > 0 ? `${uncategorizedCount} transactions` : 'None'}
               </p>
             </div>

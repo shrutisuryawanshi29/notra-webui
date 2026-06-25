@@ -21,10 +21,10 @@ export default function Chip({
 
   const colors = {
     default: selected
-      ? 'bg-[#C99152] text-white'
-      : 'bg-[#40342B] text-[#9B8778] hover:text-[#CBB9A7]',
-    pending: 'bg-[#C49A5A] text-white',
-    settled: 'bg-[#8CA37D] text-[#F4E9DA]',
+      ? 'bg-[#D49A4A] text-white'
+      : 'bg-[#403027] text-[#B8A99A] hover:text-[#F4EDE3]',
+    pending: 'bg-[#D49A4A] text-[#F4EDE3]',
+    settled: 'bg-[#93B889] text-white',
   }
 
   return (

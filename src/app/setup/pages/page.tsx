@@ -88,18 +88,18 @@ export default function PagesStep() {
     <div>
       <StepIndicator steps={STEPS} currentStep="Pages" />
       <Card className="p-6 space-y-4">
-        <h2 className="text-[#F4E9DA] text-lg font-semibold">Select a Page</h2>
+        <h2 className="text-[#F4EDE3] text-lg font-semibold">Select a Page</h2>
         <p className="text-[#9B8778] text-xs">
           Choose the Notion page that contains your finance databases.
         </p>
 
         {loading && (
           <div className="flex justify-center py-6">
-            <div className="w-6 h-6 border-2 border-[#C99152] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#D49A4A] border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {error && <p className="text-[#C7745A] text-xs">{error}</p>}
+        {error && <p className="text-[#D8755D] text-xs">{error}</p>}
 
         {!loading && pages.length === 0 && !error && (
           <p className="text-[#9B8778] text-xs">No pages found. Make sure your integration has access to pages.</p>
@@ -113,12 +113,12 @@ export default function PagesStep() {
                 onClick={() => setSelectedId(page.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                   selectedId === page.id
-                    ? 'bg-[#C99152]/10 border border-[#C99152]'
-                    : 'bg-[#40342B] border border-transparent hover:border-[#4C4036]'
+                    ? 'bg-[#D49A4A]/10 border border-[#D49A4A]'
+                    : 'bg-[#403027] border border-transparent hover:border-[#5A4638]'
                 }`}
               >
                 <span className="text-lg">{page.icon || '📄'}</span>
-                <span className="text-[#F4E9DA] text-sm truncate flex-1">{page.title}</span>
+                <span className="text-[#F4EDE3] text-sm truncate flex-1">{page.title}</span>
               </button>
             ))}
           </div>
@@ -127,7 +127,7 @@ export default function PagesStep() {
         <button
           onClick={handleContinue}
           disabled={!selectedId}
-          className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Continue
         </button>

@@ -1,36 +1,35 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-n-background: #2B241E;
-  --color-n-background-light: #332A23;
-  --color-n-background-ivory: #1F1A16;
-  --color-n-primary-brown: #EDE1D1;
-  --color-n-primary-brown-light: #D8C6B4;
-  --color-n-secondary-brown: #C99152;
-  --color-n-secondary-tan: #A97845;
-  --color-n-card: #362D25;
-  --color-n-card-alt: #40342B;
-  --color-n-text-primary: #F4E9DA;
-  --color-n-text-secondary: #CBB9A7;
-  --color-n-text-muted: #9B8778;
-  --color-n-expense: #C7745A;
-  --color-n-expense-light: #E09A82;
-  --color-n-income: #8CA37D;
-  --color-n-income-light: #B2C5A6;
-  --color-n-border: #4C4036;
-  --color-n-accent: #C99152;
-  --color-n-accent-secondary: #A97845;
-  --color-n-warning: #C49A5A;
+  --color-n-bg: #1F1712;
+  --color-n-bg-soft: #2A201A;
+  --color-n-surface: #35281F;
+  --color-n-surface-2: #403027;
+  --color-n-border: #5A4638;
+  --color-n-border-soft: #6B5847;
+  --color-n-text: #F4EDE3;
+  --color-n-text-muted: #B8A99A;
+  --color-n-text-dim: #9B8778;
+  --color-n-accent: #D49A4A;
+  --color-n-accent-hover: #C1883A;
+  --color-n-accent-soft: #6F4D2A;
+  --color-n-income: #93B889;
+  --color-n-income-light: #7DA67A;
+  --color-n-expense: #D8755D;
+  --color-n-expense-light: #C96F5A;
+  --color-n-warning: #D49A4A;
+  --color-n-danger: #D8755D;
+  --color-n-success: #93B889;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 body {
-  background: #2B241E;
-  color: #F4E9DA;
+  background: #1F1712;
+  color: #F4EDE3;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #4C4036 transparent;
+  scrollbar-color: #5A4638 transparent;
 }

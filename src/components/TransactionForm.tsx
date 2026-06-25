@@ -607,7 +607,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
   return (
     <div className="max-w-lg mx-auto">
       {showSuccess && (
-        <div className="mb-4 p-3 bg-[#8CA37D]/20 border border-[#8CA37D] rounded-xl text-[#8CA37D] text-sm font-medium flex items-center gap-2">
+        <div className="mb-4 p-3 bg-[#93B889]/20 border border-[#93B889] rounded-xl text-[#93B889] text-sm font-medium flex items-center gap-2">
           <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
           </svg>
@@ -617,14 +617,14 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
       <Card className="p-6 space-y-5">
         {!isEdit && (
           <div>
-            <label className="text-[#CBB9A7] text-xs font-medium block mb-2">Type</label>
+            <label className="text-[#B8A99A] text-xs font-medium block mb-2">Type</label>
             <div className="flex gap-2">
               <button
                 onClick={() => { setRole('expense'); setIsSplit(false) }}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                   role === 'expense'
-                    ? 'bg-[#C7745A] text-white'
-                    : 'bg-[#40342B] text-[#9B8778]'
+                    ? 'bg-[#D8755D] text-white'
+                    : 'bg-[#403027] text-[#B8A99A]'
                 }`}
               >
                 Expense
@@ -633,8 +633,8 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 onClick={() => { setRole('income'); setIsSplit(false) }}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                   role === 'income'
-                    ? 'bg-[#8CA37D] text-white'
-                    : 'bg-[#40342B] text-[#9B8778]'
+                    ? 'bg-[#93B889] text-white'
+                    : 'bg-[#403027] text-[#B8A99A]'
                 }`}
               >
                 Income
@@ -644,18 +644,18 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
         )}
 
         <div>
-          <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Title</label>
+          <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Title</label>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder={role === 'expense' ? 'Lunch at Cafe' : 'Freelance Payment'}
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+            className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
           />
         </div>
 
         <div>
-          <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">
+          <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">
             Amount {isSplit ? '(paid amount)' : ''}
           </label>
           <input
@@ -665,14 +665,14 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
             value={amount}
             onChange={e => setAmount(e.target.value)}
             placeholder="0.00"
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+            className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
           />
           {isSplit && people.length > 0 && paidAmount > 0 && (
             <div className="mt-2 space-y-1 text-xs">
-              <p className="text-[#8CA37D]">My share: ${splitResult.myShare.toFixed(2)}</p>
-              <p className="text-[#C7745A]">They owe: ${splitResult.theyOwe.toFixed(2)}</p>
+              <p className="text-[#93B889]">My share: ${splitResult.myShare.toFixed(2)}</p>
+              <p className="text-[#D8755D]">They owe: ${splitResult.theyOwe.toFixed(2)}</p>
               {splitResult.participants.map(p => (
-                <p key={p.id} className="text-[#9B8778] pl-3">
+                <p key={p.id} className="text-[#B8A99A] pl-3">
                   {p.name}: ${p.owes.toFixed(2)}
                 </p>
               ))}
@@ -681,25 +681,25 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
         </div>
 
         <div>
-          <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Date</label>
+          <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Date</label>
           <input
             type="date"
             value={date}
             onChange={e => setDate(e.target.value)}
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+            className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
           />
         </div>
 
         <div>
-          <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Category</label>
+          <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Category</label>
           {categoryOptionsLoading ? (
-            <div className="w-full bg-[#40342B] text-[#9B8778] rounded-lg px-3 py-2.5 text-sm">
+            <div className="w-full bg-[#403027] text-[#B8A99A] rounded-lg px-3 py-2.5 text-sm">
               Loading categories...
             </div>
           ) : categoryOptionsError ? (
-            <div className="w-full bg-[#40342B] text-[#C7745A] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036]">
+            <div className="w-full bg-[#403027] text-[#D8755D] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847]">
               Failed to load: {categoryOptionsError}
-              <button onClick={() => loadCategoryOptions(role)} className="ml-2 underline text-[#C99152]">
+              <button onClick={() => loadCategoryOptions(role)} className="ml-2 underline text-[#D49A4A]">
                 Retry
               </button>
             </div>
@@ -711,7 +711,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 setCategoryOption(selected)
                 setCategory(selected?.name || e.target.value)
               }}
-              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+              className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
             >
               <option value="">Select a category</option>
               {categoryOptions.map(opt => (
@@ -727,38 +727,38 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 setCategory(e.target.value)
               }}
               placeholder="e.g. Food, Transport"
-              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+              className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
             />
           )}
         </div>
 
         {monthClassificationOptionsError ? (
           <div>
-            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
-            <div className="w-full bg-[#40342B] text-[#C7745A] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036]">
+            <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Month Classification</label>
+            <div className="w-full bg-[#403027] text-[#D8755D] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847]">
               Failed to load: {monthClassificationOptionsError}
-              <button onClick={() => loadMonthClassificationOptions(role)} className="ml-2 underline text-[#C99152]">
+              <button onClick={() => loadMonthClassificationOptions(role)} className="ml-2 underline text-[#D49A4A]">
                 Retry
               </button>
             </div>
           </div>
         ) : monthClassificationLoading ? (
           <div>
-            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
-            <div className="w-full bg-[#40342B] text-[#9B8778] rounded-lg px-3 py-2.5 text-sm">
+            <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Month Classification</label>
+            <div className="w-full bg-[#403027] text-[#B8A99A] rounded-lg px-3 py-2.5 text-sm">
               Loading months...
             </div>
           </div>
         ) : monthClassificationOptions.length > 0 ? (
           <div>
-            <label className="text-[#CBB9A7] text-xs font-medium block mb-1.5">Month Classification</label>
+            <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Month Classification</label>
             <select
               value={monthClassificationValue?.name || ''}
               onChange={(e) => {
                 const selected = monthClassificationOptions.find(o => o.name === e.target.value) || null
                 setMonthClassificationValue(selected)
               }}
-              className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2.5 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+              className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
             >
               <option value="">Select a month</option>
               {monthClassificationOptions.map(opt => (
@@ -770,28 +770,28 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
 
         {role === 'expense' && (
           <>
-            <div className="border-t border-[#4C4036] pt-4">
+            <div className="border-t border-[#6B5847] pt-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <div
                   onClick={() => setIsSplit(!isSplit)}
                   className={`w-10 h-5 rounded-full transition-colors relative ${
-                    isSplit ? 'bg-[#C99152]' : 'bg-[#40342B]'
+                    isSplit ? 'bg-[#D49A4A]' : 'bg-[#403027]'
                   }`}
                 >
                   <div
-                    className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-transform ${
+                    className={`w-3.5 h-3.5 bg-[#35281F] rounded-full absolute top-0.5 transition-transform ${
                       isSplit ? 'translate-x-5' : 'translate-x-1'
                     }`}
                   />
                 </div>
-                <span className="text-[#CBB9A7] text-sm">Split expense</span>
+                <span className="text-[#B8A99A] text-sm">Split expense</span>
               </label>
             </div>
 
             {isSplit && (
-              <div className="space-y-4 border-t border-[#4C4036] pt-4">
+              <div className="space-y-4 border-t border-[#6B5847] pt-4">
                 <div>
-                  <label className="text-[#CBB9A7] text-xs font-medium block mb-2">People</label>
+                  <label className="text-[#B8A99A] text-xs font-medium block mb-2">People</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {people.map(p => (
                       <Chip
@@ -811,12 +811,12 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                       onChange={e => setNewPersonName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPerson() } }}
                       placeholder="Add person..."
-                      className="flex-1 bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+                      className="flex-1 bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
                     />
                     <button
                       onClick={addPerson}
                       disabled={!newPersonName.trim()}
-                      className="bg-[#C99152] text-white px-3 rounded-lg text-sm disabled:opacity-40"
+                      className="bg-[#D49A4A] text-white px-3 rounded-lg text-sm disabled:opacity-40"
                     >
                       Add
                     </button>
@@ -824,7 +824,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 </div>
 
                 <div>
-                  <label className="text-[#CBB9A7] text-xs font-medium block mb-2">Split Method</label>
+                  <label className="text-[#B8A99A] text-xs font-medium block mb-2">Split Method</label>
                   <div className="grid grid-cols-2 gap-2">
                     {(['equal', 'percent', 'exact', 'hhs'] as SplitMethodType[]).map(m => (
                       <button
@@ -832,8 +832,8 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                         onClick={() => setSplitMethod(m)}
                         className={`py-2 rounded-xl text-xs font-medium transition-colors ${
                           splitMethod === m
-                            ? 'bg-[#C99152] text-white'
-                            : 'bg-[#40342B] text-[#9B8778]'
+                            ? 'bg-[#D49A4A] text-white'
+                            : 'bg-[#403027] text-[#B8A99A]'
                         }`}
                       >
                         {m === 'equal' ? 'Equal' : m === 'percent' ? 'Percent' : m === 'exact' ? 'Exact' : 'Adjust'}
@@ -850,26 +850,26 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                     </div>
                     {percentMode === 'myPercent' ? (
                       <div>
-                        <label className="text-[#CBB9A7] text-xs block mb-1">My percent</label>
+                        <label className="text-[#B8A99A] text-xs block mb-1">My percent</label>
                         <input
                           type="number"
                           min="0"
                           max="100"
                           value={myPercent}
                           onChange={e => setMyPercent(e.target.value)}
-                          className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+                          className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
                         />
                       </div>
                     ) : (
                       <div>
-                        <label className="text-[#CBB9A7] text-xs block mb-1">Their total percent</label>
+                        <label className="text-[#B8A99A] text-xs block mb-1">Their total percent</label>
                         <input
                           type="number"
                           min="0"
                           max="100"
                           value={theirPercent}
                           onChange={e => setTheirPercent(e.target.value)}
-                          className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+                          className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
                         />
                       </div>
                     )}
@@ -883,7 +883,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                       <Chip selected={exactMode === 'myShare'} onClick={() => setExactMode('myShare')}>My share</Chip>
                     </div>
                     <div>
-                      <label className="text-[#CBB9A7] text-xs block mb-1">
+                      <label className="text-[#B8A99A] text-xs block mb-1">
                         {exactMode === 'theyOwe' ? 'Total they owe' : 'My share amount'}
                       </label>
                       <input
@@ -892,7 +892,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                         min="0"
                         value={customAmount}
                         onChange={e => setCustomAmount(e.target.value)}
-                        className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+                        className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
                       />
                     </div>
                   </div>
@@ -905,14 +905,14 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                       <Chip selected={hhsMode === 'extraTheyPay'} onClick={() => setHhsMode('extraTheyPay')}>They pay extra</Chip>
                     </div>
                     <div>
-                      <label className="text-[#CBB9A7] text-xs block mb-1">Extra amount</label>
+                      <label className="text-[#B8A99A] text-xs block mb-1">Extra amount</label>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
                         value={extraAmount}
                         onChange={e => setExtraAmount(e.target.value)}
-                        className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152]"
+                        className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
                       />
                     </div>
                   </div>
@@ -926,7 +926,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
           <button
             onClick={handleSubmit}
             disabled={saving || !amount || parseFloat(amount) <= 0 || (isSplit && people.length === 0)}
-            className="w-full bg-[#C99152] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#A97845] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Saving...' : isEdit ? 'Update' : `Add ${role === 'expense' ? 'Expense' : 'Income'}`}
           </button>
@@ -936,7 +936,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
               {!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
-                  className="w-full bg-[#40342B] text-[#C7745A] rounded-xl py-3 text-sm font-semibold border border-[#4C4036] hover:bg-[#C7745A] hover:text-white transition-colors"
+                  className="w-full bg-[#403027] text-[#D8755D] rounded-xl py-3 text-sm font-semibold border border-[#6B5847] hover:bg-[#D8755D] hover:text-white transition-colors"
                 >
                   Delete
                 </button>
@@ -944,13 +944,13 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConfirmDelete(false)}
-                    className="flex-1 bg-[#40342B] text-[#CBB9A7] rounded-xl py-2.5 text-sm border border-[#4C4036]"
+                    className="flex-1 bg-[#403027] text-[#B8A99A] rounded-xl py-2.5 text-sm border border-[#6B5847]"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="flex-1 bg-[#C7745A] text-white rounded-xl py-2.5 text-sm font-semibold"
+                    className="flex-1 bg-[#D8755D] text-white rounded-xl py-2.5 text-sm font-semibold"
                   >
                     Confirm Delete
                   </button>

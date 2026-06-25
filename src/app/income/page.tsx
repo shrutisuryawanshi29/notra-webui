@@ -99,7 +99,7 @@ function IncomePageContent() {
     return (
       <div className="p-5 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[#EDE1D1] text-2xl font-bold">Income</h1>
+          <h1 className="text-[#F4EDE3] text-2xl font-bold">Income</h1>
         </div>
         <LoadingSpinner />
       </div>
@@ -109,18 +109,18 @@ function IncomePageContent() {
   return (
     <div className="p-5 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[#EDE1D1] text-2xl font-bold">Income</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold">Income</h1>
         <div className="flex gap-2">
           <button
             onClick={loadData}
-            className="text-[#9B8778] hover:text-[#CBB9A7] transition-colors"
+            className="text-[#B8A99A] hover:text-[#B8A99A] transition-colors"
             title="Refresh data"
           >
             <RefreshCw size={18} />
           </button>
         <button
           onClick={() => router.push('/add?role=income')}
-          className="bg-[#8CA37D] text-white p-2 rounded-lg hover:bg-[#7B9270] transition-colors"
+          className="bg-[#93B889] text-white p-2 rounded-lg hover:bg-[#8BB080] transition-colors"
           title="Add income"
         >
             <Plus size={18} />
@@ -172,7 +172,7 @@ export default function IncomePage() {
     <Suspense fallback={
       <div className="p-5 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[#EDE1D1] text-2xl font-bold">Income</h1>
+          <h1 className="text-[#F4EDE3] text-2xl font-bold">Income</h1>
         </div>
         <LoadingSpinner />
       </div>

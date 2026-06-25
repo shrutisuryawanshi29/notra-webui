@@ -24,32 +24,32 @@ export default function OverviewGrid({
 }: OverviewGridProps) {
   return (
     <section>
-      <h3 className="text-[#CBB9A7] text-xs font-semibold uppercase tracking-wider mb-3">
+      <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
         Overview
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         <OverviewCard
-          icon={<Receipt size={20} className="text-[#C7745A]" />}
+          icon={<Receipt size={20} className="text-[#D8755D]" />}
           label="Total Spent"
           amount={`-$${totalSpend.toFixed(2)}`}
           subtitle={`${expenseCount} transactions`}
-          color="text-[#C7745A]"
-          bgClass="bg-[#C7745A]/10"
+          color="text-[#D8755D]"
+          bgClass="bg-[#D8755D]/10"
           onClick={onExpensesClick}
         />
         <OverviewCard
-          icon={<TrendingUp size={20} className="text-[#8CA37D]" />}
+          icon={<TrendingUp size={20} className="text-[#93B889]" />}
           label="Total Income"
           amount={`+$${totalIncome.toFixed(2)}`}
           subtitle={`${incomeCount} transactions`}
-          color="text-[#8CA37D]"
-          bgClass="bg-[#8CA37D]/10"
+          color="text-[#93B889]"
+          bgClass="bg-[#93B889]/10"
           onClick={onIncomeClick}
         />
         <OverviewCard
           icon={
             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-              netBalance >= 0 ? 'border-[#8CA37D] text-[#8CA37D]' : 'border-[#C7745A] text-[#C7745A]'
+              netBalance >= 0 ? 'border-[#93B889] text-[#93B889]' : 'border-[#D8755D] text-[#D8755D]'
             }`}>
               $
             </div>
@@ -57,8 +57,8 @@ export default function OverviewGrid({
           label="Net Balance"
           amount={`${netBalance >= 0 ? '+' : '-'}$${Math.abs(netBalance).toFixed(2)}`}
           subtitle={netBalance >= 0 ? 'Positive' : 'Negative'}
-          color={netBalance >= 0 ? 'text-[#8CA37D]' : 'text-[#C7745A]'}
-          bgClass={netBalance >= 0 ? 'bg-[#8CA37D]/10' : 'bg-[#C7745A]/10'}
+          color={netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}
+          bgClass={netBalance >= 0 ? 'bg-[#93B889]/10' : 'bg-[#D8755D]/10'}
         />
       </div>
     </section>

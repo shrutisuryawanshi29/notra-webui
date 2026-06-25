@@ -28,10 +28,10 @@ export default function ColumnPicker({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-[#2B241E] w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[70vh] flex flex-col border border-[#4C4036]">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#4C4036]">
-          <h3 className="text-[#F4E9DA] text-sm font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-[#C99152] text-sm font-medium">
+      <div className="relative bg-[#1F1712] w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[70vh] flex flex-col border border-[#5A4638]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#5A4638]">
+          <h3 className="text-[#2F2F35] text-sm font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-[#D49A4A] text-sm font-medium">
             Cancel
           </button>
         </div>
@@ -42,7 +42,7 @@ export default function ColumnPicker({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search columns..."
-            className="w-full bg-[#40342B] text-[#F4E9DA] rounded-lg px-3 py-2 text-sm border border-[#4C4036] focus:outline-none focus:border-[#C99152] placeholder-[#9B8778]"
+            className="w-full bg-[#FBF8F4] text-[#2F2F35] rounded-lg px-3 py-2 text-sm border border-[#5A4638] focus:outline-none focus:border-[#D49A4A] placeholder-[#6F6A73]"
           />
         </div>
 
@@ -50,7 +50,7 @@ export default function ColumnPicker({
           {currentValue && (
             <button
               onClick={() => { onSelect(null); onClose() }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-[#C7745A] text-sm hover:bg-[#40342B] transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-[#BA5A5A] text-sm hover:bg-[#FBF8F4] transition-colors"
             >
               <span>Clear selection</span>
             </button>
@@ -58,7 +58,7 @@ export default function ColumnPicker({
 
           {filtered.length === 0 ? (
             <div className="px-3 py-6 text-center">
-              <p className="text-[#9B8778] text-sm">No columns available</p>
+              <p className="text-[#6F6A73] text-sm">No columns available</p>
               <p className="text-[#5C4D42] text-xs mt-1">{emptyMessage}</p>
             </div>
           ) : (
@@ -68,13 +68,13 @@ export default function ColumnPicker({
                 onClick={() => { onSelect(name); onClose() }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                   currentValue === name
-                    ? 'bg-[#C99152]/10 border border-[#C99152]'
-                    : 'hover:bg-[#40342B]'
+                    ? 'bg-[#D49A4A]/10 border border-[#D49A4A]'
+                    : 'hover:bg-[#FBF8F4]'
                 }`}
               >
-                <span className="text-[#F4E9DA] text-sm flex-1 truncate">{name}</span>
+                <span className="text-[#2F2F35] text-sm flex-1 truncate">{name}</span>
                 {currentValue === name && (
-                  <span className="text-[#C99152] text-xs">Selected</span>
+                  <span className="text-[#D49A4A] text-xs">Selected</span>
                 )}
               </button>
             ))

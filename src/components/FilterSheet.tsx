@@ -37,7 +37,7 @@ function FilterRow({
   const options = columnOptions[filter.columnName]
 
   return (
-    <div className="bg-[#2A211A] border border-[#40342B] rounded-lg p-3 space-y-2">
+    <div className="bg-[#403027] border border-[#6B5847] rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-2">
         {/* Column picker */}
         <select
@@ -53,7 +53,7 @@ function FilterRow({
               value: '',
             })
           }}
-          className="flex-1 bg-[#1A1410] border border-[#40342B] rounded px-2 py-1.5 text-sm text-[#EDE1D1] focus:outline-none focus:border-[#C99152]"
+          className="flex-1 bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
         >
           {filteredColumns.map((col) => (
             <option key={col.name} value={col.name}>{col.label}</option>
@@ -64,7 +64,7 @@ function FilterRow({
         <select
           value={filter.operator}
           onChange={(e) => onChange({ operator: e.target.value as FilterOperator })}
-          className="bg-[#1A1410] border border-[#40342B] rounded px-2 py-1.5 text-sm text-[#EDE1D1] focus:outline-none focus:border-[#C99152]"
+          className="bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
         >
           {ops.map((op) => (
             <option key={op.value} value={op.value}>{op.label}</option>
@@ -74,7 +74,7 @@ function FilterRow({
         {/* Remove button */}
         <button
           onClick={onRemove}
-          className="text-[#9B8778] hover:text-[#C7745A] transition-colors p-1"
+          className="text-[#B8A99A] hover:text-[#D8755D] transition-colors p-1"
         >
           <X size={16} />
         </button>
@@ -85,7 +85,7 @@ function FilterRow({
         <select
           value={filter.value}
           onChange={(e) => onChange({ value: e.target.value })}
-          className="w-full bg-[#1A1410] border border-[#40342B] rounded px-2 py-1.5 text-sm text-[#EDE1D1] focus:outline-none focus:border-[#C99152]"
+          className="w-full bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
         >
           <option value="">Select {filter.columnName.toLowerCase()}...</option>
           {options.map((opt) => (
@@ -98,7 +98,7 @@ function FilterRow({
           value={filter.value}
           onChange={(e) => onChange({ value: e.target.value })}
           placeholder="Enter value..."
-          className="w-full bg-[#1A1410] border border-[#40342B] rounded px-2 py-1.5 text-sm text-[#EDE1D1] placeholder-[#6B5C4E] focus:outline-none focus:border-[#C99152]"
+          className="w-full bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] placeholder-[#9B8778] focus:outline-none focus:border-[#D49A4A]"
         />
       ) : (
         <input
@@ -106,7 +106,7 @@ function FilterRow({
           value={filter.value}
           onChange={(e) => onChange({ value: e.target.value })}
           placeholder="Enter value..."
-          className="w-full bg-[#1A1410] border border-[#40342B] rounded px-2 py-1.5 text-sm text-[#EDE1D1] placeholder-[#6B5C4E] focus:outline-none focus:border-[#C99152]"
+          className="w-full bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] placeholder-[#9B8778] focus:outline-none focus:border-[#D49A4A]"
         />
       )}
     </div>
@@ -142,19 +142,19 @@ export default function FilterSheet({
       />
 
       {/* Sheet */}
-      <div className="relative w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] bg-[#1A1410] border border-[#40342B] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] bg-[#35281F] border border-[#6B5847] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#40342B] shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#6B5847] shrink-0">
           <button
             onClick={onClearAll}
-            className="text-sm text-[#C7745A] hover:text-[#E0876A] transition-colors"
+            className="text-sm text-[#D8755D] hover:text-[#D8755D] transition-colors"
           >
             Clear All
           </button>
-          <h2 className="text-[#EDE1D1] text-base font-semibold">Filters</h2>
+          <h2 className="text-[#F4EDE3] text-base font-semibold">Filters</h2>
           <button
             onClick={onApply}
-            className="text-sm text-[#C99152] hover:text-[#DBA860] font-medium transition-colors"
+            className="text-sm text-[#D49A4A] hover:text-[#D49A4A] font-medium transition-colors"
           >
             Apply
           </button>
@@ -164,26 +164,26 @@ export default function FilterSheet({
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Date Range Section */}
           <section>
-            <h3 className="text-[#CBB9A7] text-xs font-semibold uppercase tracking-wider mb-3">
+            <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
               Date Range
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[#9B8778] text-xs mb-1">From</label>
+                <label className="block text-[#B8A99A] text-xs mb-1">From</label>
                 <input
                   type="date"
                   value={draft.dateFrom || ''}
                   onChange={(e) => onUpdateDateFrom(e.target.value || null)}
-                  className="w-full bg-[#2A211A] border border-[#40342B] rounded-lg px-3 py-2 text-sm text-[#EDE1D1] focus:outline-none focus:border-[#C99152]"
+                  className="w-full bg-[#403027] border border-[#6B5847] rounded-lg px-3 py-2 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
                 />
               </div>
               <div>
-                <label className="block text-[#9B8778] text-xs mb-1">To</label>
+                <label className="block text-[#B8A99A] text-xs mb-1">To</label>
                 <input
                   type="date"
                   value={draft.dateTo || ''}
                   onChange={(e) => onUpdateDateTo(e.target.value || null)}
-                  className="w-full bg-[#2A211A] border border-[#40342B] rounded-lg px-3 py-2 text-sm text-[#EDE1D1] focus:outline-none focus:border-[#C99152]"
+                  className="w-full bg-[#403027] border border-[#6B5847] rounded-lg px-3 py-2 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
                 />
               </div>
             </div>
@@ -192,10 +192,10 @@ export default function FilterSheet({
           {/* Column Filters Section */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[#CBB9A7] text-xs font-semibold uppercase tracking-wider">
+              <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider">
                 Column Filters
                 {draft.columnFilters.length > 0 && (
-                  <span className="ml-1.5 text-[#9B8778] font-normal">
+                  <span className="ml-1.5 text-[#B8A99A] font-normal">
                     ({draft.columnFilters.length})
                   </span>
                 )}
@@ -223,7 +223,7 @@ export default function FilterSheet({
                   onAddColumnFilter(defaultCol.name, defaultCol.type)
                 }
               }}
-              className="mt-2 flex items-center gap-1.5 text-sm text-[#C99152] hover:text-[#DBA860] transition-colors"
+              className="mt-2 flex items-center gap-1.5 text-sm text-[#D49A4A] hover:text-[#D49A4A] transition-colors"
             >
               <Plus size={14} />
               Add Filter

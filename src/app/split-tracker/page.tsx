@@ -79,7 +79,7 @@ export default function SplitTrackerPage() {
   if (state.loading && state.expenses.length === 0) {
     return (
       <div className="p-5 max-w-3xl mx-auto">
-        <h1 className="text-[#EDE1D1] text-2xl font-bold mb-6">Split Tracker</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold mb-6">Split Tracker</h1>
         <LoadingSpinner />
       </div>
     )
@@ -88,10 +88,10 @@ export default function SplitTrackerPage() {
   return (
     <div className="p-5 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[#EDE1D1] text-2xl font-bold">Split Tracker</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold">Split Tracker</h1>
         <button
           onClick={loadData}
-          className="text-[#9B8778] hover:text-[#CBB9A7] transition-colors"
+          className="text-[#9B8778] hover:text-[#9B8778] transition-colors"
           title="Refresh data"
         >
           <RefreshCw size={18} />
@@ -112,14 +112,14 @@ export default function SplitTrackerPage() {
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <Card>
-          <p className="text-[#CBB9A7] text-xs">Pending Owed</p>
-          <p className="text-[#C49A5A] text-xl font-bold mt-1">
+          <p className="text-[#9B8778] text-xs">Pending Owed</p>
+          <p className="text-[#D49A4A] text-xl font-bold mt-1">
             ${totalPendingOwed.toFixed(2)}
           </p>
         </Card>
         <Card>
-          <p className="text-[#CBB9A7] text-xs">Settled</p>
-          <p className="text-[#8CA37D] text-xl font-bold mt-1">
+          <p className="text-[#9B8778] text-xs">Settled</p>
+          <p className="text-[#93B889] text-xl font-bold mt-1">
             ${totalSettled.toFixed(2)}
           </p>
         </Card>
@@ -134,17 +134,17 @@ export default function SplitTrackerPage() {
           {groups.map((group) => (
             <Card key={group.personId}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[#F4E9DA] text-base font-semibold">
+                <h3 className="text-[#F4EDE3] text-base font-semibold">
                   {group.personName}
                 </h3>
                 <div className="flex gap-3 text-xs">
                   {group.pendingTotal > 0 && (
-                    <span className="text-[#C49A5A]">
+                    <span className="text-[#D49A4A]">
                       Pending: ${group.pendingTotal.toFixed(2)}
                     </span>
                   )}
                   {group.settledTotal > 0 && (
-                    <span className="text-[#8CA37D]">
+                    <span className="text-[#93B889]">
                       Settled: ${group.settledTotal.toFixed(2)}
                     </span>
                   )}
@@ -154,10 +154,10 @@ export default function SplitTrackerPage() {
                 {group.entries.map((entry) => (
                   <div
                     key={`${entry.transactionId}-${entry.participantId}`}
-                    className="flex items-center justify-between py-1.5 border-b border-[#4C4036]/30 last:border-0"
+                    className="flex items-center justify-between py-1.5 border-b border-[#5A4638]/30 last:border-0"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-[#F4E9DA] text-sm truncate">
+                      <p className="text-[#F4EDE3] text-sm truncate">
                         {entry.transactionTitle}
                       </p>
                       <p className="text-[#9B8778] text-xs">
@@ -166,7 +166,7 @@ export default function SplitTrackerPage() {
                       </p>
                     </div>
                     <div className="text-right ml-3 flex items-center gap-2">
-                      <p className="text-[#F4E9DA] text-sm font-medium">
+                      <p className="text-[#F4EDE3] text-sm font-medium">
                         ${entry.amountOwed.toFixed(2)}
                       </p>
                       <button
@@ -179,8 +179,8 @@ export default function SplitTrackerPage() {
                         }
                         className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${
                           entry.status === 'settled'
-                            ? 'bg-[#8CA37D] text-white'
-                            : 'bg-[#C49A5A] text-white hover:bg-[#8CA37D]'
+                            ? 'bg-[#93B889] text-white'
+                            : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'
                         }`}
                       >
                         {entry.status === 'settled' ? 'Settled' : 'Pending'}
