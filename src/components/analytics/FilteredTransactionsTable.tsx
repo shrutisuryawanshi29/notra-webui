@@ -102,7 +102,7 @@ export default function FilteredTransactionsTable({
                   </span>
                 </td>
                 <td
-                  className={`py-2.5 text-sm font-medium text-right whitespace-nowrap ${
+                  className={`py-2.5 text-sm font-medium tracking-tight text-right whitespace-nowrap ${
                     txn.databaseRole === 'expense' ? 'text-[#D8755D]' : 'text-[#93B889]'
                   }`}
                 >

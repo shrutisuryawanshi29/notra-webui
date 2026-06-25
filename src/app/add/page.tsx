@@ -19,7 +19,7 @@ function AddPageContent() {
   return (
       <div className="p-5 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[#F4EDE3] text-2xl font-bold">Add Transaction</h1>
+          <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight">Add Transaction</h1>
         </div>
         <TransactionForm defaultRole={defaultRole} />
     </div>
@@ -31,7 +31,7 @@ export default function AddPage() {
     <Suspense fallback={
       <div className="p-5 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[#F4EDE3] text-2xl font-bold">Add Transaction</h1>
+          <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight">Add Transaction</h1>
         </div>
         <div className="text-[#B8A99A] text-sm">Loading...</div>
       </div>

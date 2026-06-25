@@ -154,7 +154,7 @@ export default function FilterSheet({
           <h2 className="text-[#F4EDE3] text-base font-semibold">Filters</h2>
           <button
             onClick={onApply}
-            className="text-sm text-[#D49A4A] hover:text-[#D49A4A] font-medium transition-colors"
+            className="text-sm text-[#D49A4A] hover:text-[#D49A4A] font-semibold transition-colors"
           >
             Apply
           </button>

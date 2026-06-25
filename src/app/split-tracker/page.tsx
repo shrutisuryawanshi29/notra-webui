@@ -79,7 +79,7 @@ export default function SplitTrackerPage() {
   if (state.loading && state.expenses.length === 0) {
     return (
       <div className="p-5 max-w-3xl mx-auto">
-        <h1 className="text-[#F4EDE3] text-2xl font-bold mb-6">Split Tracker</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight mb-6">Split Tracker</h1>
         <LoadingSpinner />
       </div>
     )
@@ -88,7 +88,7 @@ export default function SplitTrackerPage() {
   return (
     <div className="p-5 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[#F4EDE3] text-2xl font-bold">Split Tracker</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight">Split Tracker</h1>
         <button
           onClick={loadData}
           className="text-[#9B8778] hover:text-[#9B8778] transition-colors"
@@ -113,13 +113,13 @@ export default function SplitTrackerPage() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <Card>
           <p className="text-[#9B8778] text-xs">Pending Owed</p>
-          <p className="text-[#D49A4A] text-xl font-bold mt-1">
+          <p className="text-[#D49A4A] text-xl font-bold tracking-tight mt-1">
             ${totalPendingOwed.toFixed(2)}
           </p>
         </Card>
         <Card>
           <p className="text-[#9B8778] text-xs">Settled</p>
-          <p className="text-[#93B889] text-xl font-bold mt-1">
+          <p className="text-[#93B889] text-xl font-bold tracking-tight mt-1">
             ${totalSettled.toFixed(2)}
           </p>
         </Card>
@@ -134,17 +134,17 @@ export default function SplitTrackerPage() {
           {groups.map((group) => (
             <Card key={group.personId}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[#F4EDE3] text-base font-semibold">
+                <h3 className="text-[#F4EDE3] text-base font-semibold tracking-wider">
                   {group.personName}
                 </h3>
                 <div className="flex gap-3 text-xs">
                   {group.pendingTotal > 0 && (
-                    <span className="text-[#D49A4A]">
+                    <span className="text-[#D49A4A] tracking-tight">
                       Pending: ${group.pendingTotal.toFixed(2)}
                     </span>
                   )}
                   {group.settledTotal > 0 && (
-                    <span className="text-[#93B889]">
+                    <span className="text-[#93B889] tracking-tight">
                       Settled: ${group.settledTotal.toFixed(2)}
                     </span>
                   )}
@@ -166,7 +166,7 @@ export default function SplitTrackerPage() {
                       </p>
                     </div>
                     <div className="text-right ml-3 flex items-center gap-2">
-                      <p className="text-[#F4EDE3] text-sm font-medium">
+                      <p className="text-[#F4EDE3] text-sm font-medium tracking-tight">
                         ${entry.amountOwed.toFixed(2)}
                       </p>
                       <button
@@ -177,7 +177,7 @@ export default function SplitTrackerPage() {
                             entry.status
                           )
                         }
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
                           entry.status === 'settled'
                             ? 'bg-[#93B889] text-white'
                             : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'

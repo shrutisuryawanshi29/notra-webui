@@ -33,7 +33,7 @@ function ChangeDisplay({ label, change, icon, iconBg }: { label: string; change:
         {icon}
       </div>
       <span className="text-[#B8A99A] text-xs">{label}</span>
-      <span className="text-sm font-semibold" style={{ color }}>{display}</span>
+      <span className="text-sm font-semibold tracking-tight" style={{ color }}>{display}</span>
     </div>
   )
 }

@@ -20,13 +20,13 @@
   --color-n-warning: #D49A4A;
   --color-n-danger: #D8755D;
   --color-n-success: #93B889;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
   background: #1F1712;
   color: #F4EDE3;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 * {

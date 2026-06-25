@@ -72,7 +72,7 @@ export default function SpendingTrend({ dailyData, monthlyData, scope, allExpens
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-4">Spending Trend</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-4">Spending Trend</h3>
       <ResponsiveContainer width="100%" height={250}>
         <AreaChart data={chartData}>
           <defs>

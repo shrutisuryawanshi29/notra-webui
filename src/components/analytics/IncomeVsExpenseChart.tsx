@@ -62,7 +62,7 @@ export default function IncomeVsExpenseChart({ dailyData, monthlyData, scope }: 
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-4">Income vs Expenses</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-4">Income vs Expenses</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} barGap={4} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="#5A4638" />

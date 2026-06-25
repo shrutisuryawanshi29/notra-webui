@@ -15,7 +15,7 @@ export default function TopSpendingCategories({ categories, totalExpenses }: Top
   if (categories.length === 0) {
     return (
       <Card>
-        <h3 className="text-[#F4EDE3] text-sm font-semibold mb-1">Top Spending Categories</h3>
+        <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-1">Top Spending Categories</h3>
         <EmptyState title="No expense data" />
       </Card>
     )
@@ -23,7 +23,7 @@ export default function TopSpendingCategories({ categories, totalExpenses }: Top
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-3">Top Spending Categories</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-3">Top Spending Categories</h3>
       <div className="space-y-3">
         {categories.map((cat, index) => (
           <div key={cat.name}>
@@ -31,7 +31,7 @@ export default function TopSpendingCategories({ categories, totalExpenses }: Top
               <span className="text-[#B8A99A] text-xs font-bold w-5">{index + 1}</span>
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} />
               <span className="text-[#F4EDE3] text-sm flex-1 truncate">{cat.name}</span>
-              <span className="text-[#D8755D] text-sm font-medium">{formatCurrency(cat.spent)}</span>
+              <span className="text-[#D8755D] text-sm font-medium tracking-tight">{formatCurrency(cat.spent)}</span>
               <span className="text-[#B8A99A] text-xs">{formatPercent(cat.percentage)}</span>
             </div>
             <div className="mt-1.5 ml-9 w-full h-1 bg-[#6B5847] rounded-full overflow-hidden">

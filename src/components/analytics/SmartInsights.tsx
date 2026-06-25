@@ -19,7 +19,7 @@ export default function SmartInsights({ insights }: SmartInsightsProps) {
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-3">Insights</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-3">Insights</h3>
       <div className="space-y-1">
         {insights.map((insight, index) => {
           const { Icon, color } = iconMap[insight.type]

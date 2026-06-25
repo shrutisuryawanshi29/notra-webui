@@ -34,7 +34,7 @@ function BiggestTransactionCard({ type, data }: { type: 'expense' | 'income'; da
           </div>
           <div className="flex items-center gap-2 py-1">
             <span className="text-[#B8A99A] text-xs w-12">Amount</span>
-            <span className="text-sm font-medium" style={{ color: dotColor }}>{formatCurrency(data.amount)}</span>
+            <span className="text-sm font-medium tracking-tight" style={{ color: dotColor }}>{formatCurrency(data.amount)}</span>
           </div>
           <div className="flex items-center gap-2 py-1">
             <span className="text-[#B8A99A] text-xs w-12">Date</span>

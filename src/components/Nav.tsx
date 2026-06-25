@@ -46,7 +46,7 @@ export default function Nav() {
                   href={item.href}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D49A4A] ${
                     isActive
-                      ? 'bg-[#3A2A22] text-[#F4EDE3] font-medium shadow-[inset_0_-2px_0_#D49A4A]'
+                      ? 'bg-[#3A2A22] text-[#F4EDE3] font-semibold shadow-[inset_0_-2px_0_#D49A4A]'
                       : 'text-[#B8A99A] hover:text-[#F4EDE3] hover:bg-[#3A2A22]/50'
                   }`}
                 >
@@ -60,7 +60,7 @@ export default function Nav() {
         <div className="flex items-center gap-3">
           <Link
             href="/add?role=expense"
-            className="flex items-center gap-1.5 bg-[#D49A4A] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#C1883A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F4EDE3]"
+            className="flex items-center gap-1.5 bg-[#D49A4A] text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-[#C1883A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F4EDE3]"
           >
             <Plus size={16} />
             Add
@@ -108,7 +108,7 @@ export default function Nav() {
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D49A4A] ${
                     isActive
-                      ? 'bg-[#3A2A22] text-[#F4EDE3] font-medium shadow-[inset_0_-2px_0_#D49A4A]'
+                      ? 'bg-[#3A2A22] text-[#F4EDE3] font-semibold shadow-[inset_0_-2px_0_#D49A4A]'
                       : 'text-[#B8A99A] hover:text-[#F4EDE3] hover:bg-[#3A2A22]/50'
                   }`}
                 >

@@ -38,7 +38,7 @@ export default function AnalyticsFilterBar({
         <div ref={ref} className="relative">
           <button
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-1.5 bg-[#403027] text-[#D49A4A] text-xs rounded-full px-4 py-1.5 font-medium hover:bg-[#6B5847] transition-colors"
+            className="flex items-center gap-1.5 bg-[#403027] text-[#D49A4A] text-xs rounded-full px-4 py-1.5 font-semibold hover:bg-[#6B5847] transition-colors"
           >
             {scopeLabel}
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`mt-0.5 transition-transform ${open ? 'rotate-180' : ''}`}>

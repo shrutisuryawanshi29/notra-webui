@@ -32,7 +32,7 @@ export default function SummaryCards({
           <TrendingUp size={16} className="text-[#93B889]" />
         </div>
         <span className="text-[#B8A99A] text-xs">Total Income</span>
-        <span className="text-lg font-bold text-[#93B889]">{formatCurrency(totalIncome)}</span>
+        <span className="text-lg font-bold tracking-tight text-[#93B889]">{formatCurrency(totalIncome)}</span>
         <span className="text-[#B8A99A] text-xs">{scopeLabel}</span>
       </Card>
 
@@ -41,7 +41,7 @@ export default function SummaryCards({
           <Receipt size={16} className="text-[#D8755D]" />
         </div>
         <span className="text-[#B8A99A] text-xs">Total Expenses</span>
-        <span className="text-lg font-bold text-[#D8755D]">{formatCurrency(totalExpenses)}</span>
+        <span className="text-lg font-bold tracking-tight text-[#D8755D]">{formatCurrency(totalExpenses)}</span>
         <span className="text-[#B8A99A] text-xs">{scopeLabel}</span>
       </Card>
 
@@ -50,7 +50,7 @@ export default function SummaryCards({
           <DollarSign size={16} className={netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'} />
         </div>
         <span className="text-[#B8A99A] text-xs">Net Balance</span>
-        <span className={`text-lg font-bold ${netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
+        <span className={`text-lg font-bold tracking-tight ${netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
           {formatCurrencySigned(netBalance)}
         </span>
         <span className="text-[#B8A99A] text-xs">{netBalance >= 0 ? 'Positive' : 'Negative'}</span>
@@ -61,7 +61,7 @@ export default function SummaryCards({
           <PieChart size={16} className="text-[#D49A4A]" />
         </div>
         <span className="text-[#B8A99A] text-xs">Savings Rate</span>
-        <span className="text-lg font-bold text-[#F4EDE3]">
+        <span className="text-lg font-bold tracking-tight text-[#F4EDE3]">
           {savingsRate !== null ? formatPercent(savingsRate) : 'N/A'}
         </span>
         <span className="text-[#B8A99A] text-xs">of income saved</span>
@@ -72,7 +72,7 @@ export default function SummaryCards({
           <List size={16} className="text-[#B8A99A]" />
         </div>
         <span className="text-[#B8A99A] text-xs">Total Transactions</span>
-        <span className="text-lg font-bold text-[#F4EDE3]">{totalTransactions}</span>
+        <span className="text-lg font-bold tracking-tight text-[#F4EDE3]">{totalTransactions}</span>
         <span className="text-[#B8A99A] text-xs">transactions</span>
       </Card>
 
@@ -81,7 +81,7 @@ export default function SummaryCards({
           <Calendar size={16} className="text-[#D8755D]" />
         </div>
         <span className="text-[#B8A99A] text-xs">Avg Daily Spend</span>
-        <span className="text-lg font-bold text-[#D8755D]">{formatCurrency(averageDailySpend)}</span>
+        <span className="text-lg font-bold tracking-tight text-[#D8755D]">{formatCurrency(averageDailySpend)}</span>
         <span className="text-[#B8A99A] text-xs">per day</span>
       </Card>
     </div>

@@ -17,7 +17,7 @@ export default function Chip({
   variant = 'default',
   className = '',
 }: ChipProps) {
-  const base = 'px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer'
+  const base = 'px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer'
 
   const colors = {
     default: selected

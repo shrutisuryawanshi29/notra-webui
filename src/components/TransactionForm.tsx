@@ -480,10 +480,15 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
   const resetForm = () => {
     setTitle('')
     setAmount('')
-    setDate(new Date().toISOString().split('T')[0])
+    const today = new Date().toISOString().split('T')[0]
+    setDate(today)
     setCategory('')
     setCategoryOption(null)
-    setMonthClassificationValue(null)
+    if (monthClassificationOptions.length > 0) {
+      setMonthClassificationValue(autoSelectMonth(today, monthClassificationOptions))
+    } else {
+      setMonthClassificationValue(null)
+    }
     setIsSplit(false)
     setPeople([])
     setNewPersonName('')
@@ -668,7 +673,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
             className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
           />
           {isSplit && people.length > 0 && paidAmount > 0 && (
-            <div className="mt-2 space-y-1 text-xs">
+            <div className="mt-2 space-y-1 text-xs tracking-tight">
               <p className="text-[#93B889]">My share: ${splitResult.myShare.toFixed(2)}</p>
               <p className="text-[#D8755D]">They owe: ${splitResult.theyOwe.toFixed(2)}</p>
               {splitResult.participants.map(p => (
@@ -830,7 +835,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                       <button
                         key={m}
                         onClick={() => setSplitMethod(m)}
-                        className={`py-2 rounded-xl text-xs font-medium transition-colors ${
+                        className={`py-2 rounded-xl text-xs font-semibold transition-colors ${
                           splitMethod === m
                             ? 'bg-[#D49A4A] text-white'
                             : 'bg-[#403027] text-[#B8A99A]'

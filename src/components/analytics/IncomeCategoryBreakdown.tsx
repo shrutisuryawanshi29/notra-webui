@@ -14,7 +14,7 @@ export default function IncomeCategoryBreakdown({ categories, totalIncome, onCat
   if (categories.length === 0 && totalIncome === 0) {
     return (
       <Card>
-        <h3 className="text-[#F4EDE3] text-sm font-semibold mb-1">Income Sources</h3>
+        <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-1">Income Sources</h3>
         <EmptyState title="No income data for this period" />
       </Card>
     )
@@ -23,7 +23,7 @@ export default function IncomeCategoryBreakdown({ categories, totalIncome, onCat
   if (categories.length === 0) {
     return (
       <Card>
-        <h3 className="text-[#F4EDE3] text-sm font-semibold mb-1">Income Sources</h3>
+        <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-1">Income Sources</h3>
         <p className="text-[#B8A99A] text-xs py-4">Income from uncategorized sources</p>
       </Card>
     )
@@ -31,7 +31,7 @@ export default function IncomeCategoryBreakdown({ categories, totalIncome, onCat
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-1">Income Sources</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-1">Income Sources</h3>
       <p className="text-[#B8A99A] text-xs mb-3">
         {categories.length} {categories.length === 1 ? 'source' : 'sources'} &middot; Total {formatCurrency(totalIncome)}
       </p>
@@ -47,7 +47,7 @@ export default function IncomeCategoryBreakdown({ categories, totalIncome, onCat
               <span className="text-[#F4EDE3] text-sm">{cat.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[#93B889] text-sm font-medium">{formatCurrency(cat.spent)}</span>
+              <span className="text-[#93B889] text-sm font-medium tracking-tight">{formatCurrency(cat.spent)}</span>
               <span className="text-[#B8A99A] text-xs">{formatPercent(cat.percentage)}</span>
             </div>
           </div>

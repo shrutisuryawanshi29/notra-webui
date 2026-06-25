@@ -32,7 +32,7 @@ export default function SettingsPage() {
   if (!config) {
     return (
       <div className="p-5 max-w-3xl mx-auto">
-        <h1 className="text-[#EDE1D1] text-2xl font-bold mb-6">Settings</h1>
+        <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight mb-6">Settings</h1>
         <p className="text-[#B8A99A] text-sm">Loading...</p>
       </div>
     )
@@ -40,7 +40,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-5 max-w-3xl mx-auto">
-      <h1 className="text-[#EDE1D1] text-2xl font-bold mb-6">Settings</h1>
+      <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight mb-6">Settings</h1>
 
       <Card className="mb-4">
         <h2 className="text-[#F4EDE3] text-sm font-semibold mb-3">

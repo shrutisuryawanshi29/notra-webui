@@ -359,12 +359,12 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#1F1712]">
       {/* ===== HERO SECTION ===== */}
-      <div className="bg-gradient-to-r from-[#2A201A] to-[#6F4D2A] relative overflow-hidden">
-        {/* Decorative background blobs */}
-        <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-white/3 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-white/3 blur-3xl" />
-        <div className="absolute top-6 right-1/3 w-40 h-40 rounded-full bg-white/3 blur-2xl" />
-
+      <div className="bg-gradient-to-r from-[#2A201A] to-[#6F4D2A] relative">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-white/3 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-white/3 blur-3xl" />
+          <div className="absolute top-6 right-1/3 w-40 h-40 rounded-full bg-white/3 blur-2xl" />
+        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
           {/* Two-column desktop layout */}
           <div className="md:grid md:grid-cols-5 md:gap-8 md:items-start">
@@ -483,7 +483,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ===== MAIN CONTENT PANEL ===== */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 pb-8 md:pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 md:mt-8 pb-8 md:pb-12">
         <div className="bg-[#2A201A] border border-[#5A4638] rounded-2xl shadow-lg p-5 md:p-8 space-y-7">
 
           {/* Section: Overview Cards */}

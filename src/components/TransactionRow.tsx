@@ -32,7 +32,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
         <div className="flex items-center gap-2 mt-1">
           {transaction.category && (
             <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+              className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
               style={{ backgroundColor: accentColor }}
             >
               {transaction.category}
@@ -40,7 +40,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
           )}
           {splitColor && (
             <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+              className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ backgroundColor: `${splitColor}20`, color: splitColor }}
             >
               Split
@@ -58,7 +58,7 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
       </div>
       <div className="flex items-center gap-2 ml-3">
         <div className="text-right">
-          <p className={`${color} text-base font-semibold`}>
+          <p className={`${color} text-base font-semibold tracking-tight`}>
             {isExpense ? '-' : '+'}${transaction.amount.toFixed(2)}
           </p>
         </div>

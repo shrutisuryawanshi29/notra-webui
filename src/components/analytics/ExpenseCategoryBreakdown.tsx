@@ -45,7 +45,7 @@ export default function ExpenseCategoryBreakdown({ categories, onCategoryClick }
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold mb-0.5">Where is my money going?</h3>
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-0.5">Where is my money going?</h3>
       <p className="text-[#B8A99A] text-xs mb-4">Expense Category Breakdown</p>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-shrink-0 flex items-center justify-center">
@@ -86,7 +86,7 @@ export default function ExpenseCategoryBreakdown({ categories, onCategoryClick }
                 <span className="text-[#F4EDE3] text-sm truncate">{cat.name}</span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[#D8755D] text-xs font-medium">{formatCurrency(cat.spent)}</span>
+                <span className="text-[#D8755D] text-xs font-medium tracking-tight">{formatCurrency(cat.spent)}</span>
                 <span className="text-[#B8A99A] text-xs">({cat.percentage.toFixed(1)}%)</span>
               </div>
             </button>
