@@ -79,6 +79,7 @@ export default function IncomeVsExpenseChart({ dailyData, monthlyData, scope }: 
           />
           <Tooltip
             content={<CustomTooltip />}
+            cursor={{ fill: 'transparent' }}
             labelFormatter={(_label: React.ReactNode, payload: ReadonlyArray<any>) => (payload[0]?.payload?.tooltipLabel ?? _label) as string}
           />
           <Legend

@@ -1,37 +1,64 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isSetupComplete, loadConfig, getExpenseMapping } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import DashboardSection from '@/components/dashboard/DashboardSection'
 import MonthlyBudgetGrid, { BudgetCategoryItem, BudgetUtilizationSummary } from '@/components/dashboard/MonthlyBudgetGrid'
+
+import AnalyticsFilterBar from '@/components/analytics/AnalyticsFilterBar'
+import IncomeVsExpenseChart from '@/components/analytics/IncomeVsExpenseChart'
+import ExpenseCategoryBreakdown from '@/components/analytics/ExpenseCategoryBreakdown'
+import IncomeCategoryBreakdown from '@/components/analytics/IncomeCategoryBreakdown'
+import SpendingTrend from '@/components/analytics/SpendingTrend'
+import TopSpendingCategories from '@/components/analytics/TopSpendingCategories'
+import BiggestTransactions from '@/components/analytics/BiggestTransactions'
+import MonthOverMonthComparison from '@/components/analytics/MonthOverMonthComparison'
+import SmartInsights from '@/components/analytics/SmartInsights'
+import FilteredTransactionsTable from '@/components/analytics/FilteredTransactionsTable'
+
+import {
+  availableMonths,
+  getDefaultScope,
+  getScopeLabel,
+  getMonthLabel,
+  filterByScope,
+  totalIncome,
+  totalExpenses,
+  netBalance,
+  savingsRate,
+  totalTransactions,
+  expensesByCategory,
+  incomeByCategory,
+  groupByDay,
+  groupByMonth,
+  biggestExpense,
+  biggestIncome,
+  topSpendingCategories,
+  monthOverMonthComparison,
+  generateInsights,
+  formatCurrency,
+  getMonthKey,
+  AnalyticsScope,
+} from '@/lib/analytics'
+
 import { BarChart, Bar, XAxis, ResponsiveContainer } from 'recharts'
 import {
   Receipt,
   TrendingUp,
-  BarChart3,
   RefreshCw,
-  DollarSign,
   Users,
   Plus,
+  DollarSign,
+  Wallet,
+  PieChart,
+  ChevronRight,
+  List,
 } from 'lucide-react'
-
-const MONTH_LABELS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-
-function getMonthKey(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00Z')
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function getMonthLabel(value: string): string {
-  const [y, m] = value.split('-')
-  return `${MONTH_LABELS[parseInt(m) - 1]} ${y}`
-}
 
 function getMonthRange(monthKey: string): { monthFrom: string; monthTo: string } {
   const [y, m] = monthKey.split('-')
@@ -46,23 +73,70 @@ function getMonthRange(monthKey: string): { monthFrom: string; monthTo: string }
   }
 }
 
-function formatCurrency(amount: number): string {
-  return `$${Math.abs(amount).toFixed(2)}`
+function OverviewStatCard({
+  href,
+  onClick,
+  icon,
+  label,
+  value,
+  subtitle,
+  valueColor,
+}: {
+  href?: string
+  onClick?: () => void
+  icon: ReactNode
+  label: string
+  value: string
+  subtitle?: string
+  valueColor?: string
+}) {
+  const interactive = !!href || !!onClick
+  const classes = interactive
+    ? 'bg-[#2A1F18] rounded-xl p-3 md:p-4 border border-[#5A4638] shadow-sm flex flex-col gap-1 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#D49A4A]/50 hover:shadow-[0_4px_12px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D49A4A] group cursor-pointer'
+    : 'bg-[#2A1F18] rounded-xl p-3 md:p-4 border border-[#5A4638] shadow-sm flex flex-col gap-1 text-left'
+
+  const content = (
+    <>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
+          <span className="text-[#B8A99A] text-[11px] font-semibold truncate">{label}</span>
+        </div>
+        {interactive && <ChevronRight size={12} className="text-[#5A4638] group-hover:text-[#D49A4A] transition-colors shrink-0 ml-1" />}
+      </div>
+      <span className={`text-base md:text-lg font-bold tracking-tight ${valueColor || 'text-[#F4EDE3]'}`}>
+        {value}
+      </span>
+      {subtitle && (
+        <span className="text-[#9B8778] text-[11px]">{subtitle}</span>
+      )}
+    </>
+  )
+
+  if (onClick) {
+    return <button type="button" onClick={onClick} className={classes}>{content}</button>
+  }
+  if (href) {
+    return <Link href={href} className={classes}>{content}</Link>
+  }
+  return <div className={classes}>{content}</div>
 }
 
 function AtAGlanceCard({ items: facts }: { items: { label: string; value: string; color: string }[] }) {
   return (
-    <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847]">
-      <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
+    <div className="bg-n-surface rounded-2xl p-4 border border-n-border-soft">
+      <h3 className="text-n-text-muted text-xs font-semibold uppercase tracking-wider mb-3">
         This Month at a Glance
       </h3>
       {facts.length === 0 ? (
-        <p className="text-[#B8A99A] text-xs py-4 text-center">No data yet this month</p>
+        <p className="text-n-text-muted text-xs py-4 text-center">No data yet this month</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {facts.map((fact, i) => (
-            <div key={i} className="bg-[#403027] rounded-xl p-3">
-              <p className="text-[#B8A99A] text-[10px]">{fact.label}</p>
+            <div key={i} className="bg-n-surface-2 rounded-xl p-3">
+              <p className="text-n-text-muted text-xs">{fact.label}</p>
               <p className={`text-sm font-bold mt-0.5 ${fact.color}`}>{fact.value}</p>
             </div>
           ))}
@@ -72,11 +146,111 @@ function AtAGlanceCard({ items: facts }: { items: { label: string; value: string
   )
 }
 
+function ScopeDropdown({
+  scope,
+  onScopeChange,
+  monthKeys,
+}: {
+  scope: AnalyticsScope
+  onScopeChange: (scope: AnalyticsScope) => void
+  monthKeys: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+
+  useEffect(() => {
+    if (!open) return
+    const button = buttonRef.current
+    if (!button) return
+    const rect = button.getBoundingClientRect()
+    const gap = 8
+    const spaceBelow = window.innerHeight - rect.bottom - gap
+    const spaceAbove = rect.top - gap
+    const maxH = Math.min(288, Math.max(spaceBelow, spaceAbove, 120))
+    const openUp = spaceBelow < 120 && spaceAbove >= spaceBelow
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      top: openUp ? undefined : rect.bottom + 6,
+      bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+      minWidth: Math.max(rect.width, 176),
+      maxHeight: maxH,
+    })
+  }, [open, monthKeys.length])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (
+        buttonRef.current?.contains(e.target as Node) ||
+        menuRef.current?.contains(e.target as Node)
+      ) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const scopeLabel = getScopeLabel(scope)
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        ref={buttonRef}
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 bg-[#2A1F18] text-[#D49A4A] text-sm rounded-lg px-3.5 py-1.5 font-semibold border border-[#5A4638] shadow-sm hover:bg-[#35281F] hover:border-[#D49A4A]/40 transition-colors"
+      >
+        {scopeLabel}
+        <svg width="12" height="12" viewBox="0 0 10 10" fill="none" className={`transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="bg-[#35281F] border border-[#6B5847] rounded-xl shadow-xl z-[9999] overflow-y-auto py-1"
+          style={menuStyle}
+        >
+          <button
+            onClick={() => { onScopeChange({ type: 'all' }); setOpen(false) }}
+            className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+              scope.type === 'all'
+                ? 'bg-[#D49A4A]/10 text-[#D49A4A] font-medium'
+                : 'text-[#F4EDE3] hover:bg-[#403027]'
+            }`}
+          >
+            All Data
+          </button>
+          {monthKeys.map(key => {
+            const [y, m] = key.split('-')
+            return (
+              <button
+                key={key}
+                onClick={() => { onScopeChange({ type: 'month', year: parseInt(y), month: parseInt(m), monthKey: key }); setOpen(false) }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                  scope.type === 'month' && scope.monthKey === key
+                    ? 'bg-[#D49A4A]/10 text-[#D49A4A] font-medium'
+                    : 'text-[#F4EDE3] hover:bg-[#403027]'
+                }`}
+              >
+                {getMonthLabel(key)}
+              </button>
+            )
+          })}
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { state, loadData } = useCache()
   const { expenses, incomes, loading } = state
-  const [initialLoadAttempted, setInitialLoadAttempted] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isSetupComplete()) {
@@ -84,95 +258,66 @@ export default function DashboardPage() {
     }
   }, [router])
 
-  useEffect(() => {
-    if (expenses.length === 0 && incomes.length === 0 && !loading && !initialLoadAttempted) {
-      setInitialLoadAttempted(true)
-      loadData()
-    }
-  }, [expenses.length, incomes.length, loading, initialLoadAttempted, loadData])
-
   const now = new Date()
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const allTransactions = useMemo(() => [...expenses, ...incomes], [expenses, incomes])
+  const monthKeys = useMemo(() => availableMonths(expenses, incomes), [expenses, incomes])
 
-  const monthKeys = useMemo(() => {
-    const set = new Set<string>()
-    for (const e of expenses) set.add(getMonthKey(e.date))
-    for (const i of incomes) set.add(getMonthKey(i.date))
-    return Array.from(set).sort()
-  }, [expenses, incomes])
+  const [scope, setScope] = useState<AnalyticsScope>({ type: 'all' })
 
+  if (scope.type === 'all' && monthKeys.length > 0) {
+    setScope(getDefaultScope(expenses, incomes))
+  }
+
+  const filteredTransactions = useMemo(() => filterByScope(allTransactions, scope), [allTransactions, scope])
+
+  const filteredIncomes = useMemo(
+    () => filteredTransactions.filter(t => t.databaseRole === 'income'),
+    [filteredTransactions]
+  )
+
+  const inc = useMemo(() => totalIncome(filteredTransactions), [filteredTransactions])
+  const exp = useMemo(() => totalExpenses(filteredTransactions), [filteredTransactions])
+  const net = useMemo(() => netBalance(filteredTransactions), [filteredTransactions])
+  const sr = useMemo(() => savingsRate(filteredTransactions), [filteredTransactions])
+  const txnCount = useMemo(() => totalTransactions(filteredTransactions), [filteredTransactions])
+  const incomeCount = filteredIncomes.length
+  const expenseCount = filteredTransactions.length - incomeCount
+
+  const scrollToBudget = () => {
+    document.getElementById('monthly-budget')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const dailyData = useMemo(() => groupByDay(filteredTransactions), [filteredTransactions])
+  const monthlyData = useMemo(() => groupByMonth(allTransactions), [allTransactions])
+  const expCategories = useMemo(() => expensesByCategory(filteredTransactions), [filteredTransactions])
+  const incCategories = useMemo(() => incomeByCategory(filteredTransactions), [filteredTransactions])
+  const biggestExp = useMemo(() => biggestExpense(filteredTransactions), [filteredTransactions])
+  const biggestInc = useMemo(() => biggestIncome(filteredTransactions), [filteredTransactions])
+  const topCategories = useMemo(() => topSpendingCategories(filteredTransactions, 5), [filteredTransactions])
+  const momComparison = useMemo(() => monthOverMonthComparison(allTransactions, scope), [allTransactions, scope])
+  const insights = useMemo(() => generateInsights(allTransactions, scope, allTransactions), [allTransactions, scope])
+
+  const tableIncome = useMemo(() => totalIncome(filteredTransactions), [filteredTransactions])
+  const tableExpenses = useMemo(() => totalExpenses(filteredTransactions), [filteredTransactions])
+
+  // Budget computation (from dashboard)
   const activeMonth = useMemo(() => {
-    if (monthKeys.includes(currentMonthKey)) return currentMonthKey
+    if (scope.type === 'month') return scope.monthKey
     if (monthKeys.length > 0) return monthKeys[monthKeys.length - 1]
-    return currentMonthKey
-  }, [monthKeys, currentMonthKey])
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }, [scope, monthKeys])
 
-  const monthRange = useMemo(() => getMonthRange(activeMonth), [activeMonth])
-
-  const filteredExpenses = useMemo(
+  const monthBudgetExpenses = useMemo(
     () => expenses.filter(e => getMonthKey(e.date) === activeMonth),
     [expenses, activeMonth]
   )
 
-  const filteredIncomes = useMemo(
-    () => incomes.filter(i => getMonthKey(i.date) === activeMonth),
-    [incomes, activeMonth]
-  )
+  const monthRange = useMemo(() => getMonthRange(activeMonth), [activeMonth])
 
-  const totalSpend = filteredExpenses.reduce((sum, e) => sum + e.amount, 0)
-  const totalIncome = filteredIncomes.reduce((sum, e) => sum + e.amount, 0)
-  const netBalance = totalIncome - totalSpend
-  const savingsRate = totalIncome > 0 ? ((netBalance / totalIncome) * 100) : null
-  const transactionCount = filteredExpenses.length + filteredIncomes.length
+  const totalSpend = monthBudgetExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const totalIncomeBudget = filteredIncomes.reduce((sum, e) => sum + e.amount, 0)
 
-  // Daily chart data for mini cashflow
-  const dailyChartData = useMemo(() => {
-    const map = new Map<string, { income: number; expense: number }>()
-    for (const e of filteredExpenses) {
-      const existing = map.get(e.date) || { income: 0, expense: 0 }
-      existing.expense += e.amount
-      map.set(e.date, existing)
-    }
-    for (const i of filteredIncomes) {
-      const existing = map.get(i.date) || { income: 0, expense: 0 }
-      existing.income += i.amount
-      map.set(i.date, existing)
-    }
-    const daysInMonth = new Date(parseInt(activeMonth.split('-')[0]), parseInt(activeMonth.split('-')[1]), 0).getDate()
-    const data: { day: number; income: number; expense: number }[] = []
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${activeMonth}-${String(d).padStart(2, '0')}`
-      const entry = map.get(dateStr) || { income: 0, expense: 0 }
-      data.push({ day: d, income: entry.income, expense: entry.expense })
-    }
-    return data
-  }, [filteredExpenses, filteredIncomes, activeMonth])
-
-  // Recent transactions
-  const recentTransactions = useMemo(
-    () => [...filteredExpenses, ...filteredIncomes]
-      .filter(t => t.date)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 5),
-    [filteredExpenses, filteredIncomes]
-  )
-
-  // Top 3 expense categories
-  const topExpenseCategories = useMemo(() => {
-    const map = new Map<string, { spent: number }>()
-    for (const e of filteredExpenses) {
-      const cat = e.category || 'Uncategorized'
-      const existing = map.get(cat) || { spent: 0 }
-      existing.spent += e.amount
-      map.set(cat, existing)
-    }
-    return Array.from(map.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.spent - a.spent)
-      .slice(0, 3)
-  }, [filteredExpenses])
-
-  // Budget computation
   const budgetItems = useMemo<BudgetCategoryItem[]>(() => {
     const config = loadConfig()
     if (!config) return []
@@ -184,7 +329,7 @@ export default function DashboardPage() {
 
     const spendByCategory = new Map<string, { spent: number; name: string }>()
 
-    for (const expense of filteredExpenses) {
+    for (const expense of monthBudgetExpenses) {
       if (categoryType === 'relation' && categoryColumnName && expense.rawProperties) {
         const catProp = (expense.rawProperties as Record<string, unknown>)[categoryColumnName] as Record<string, unknown> | undefined
         const relationArr = (catProp?.relation as Array<{ id: string }> | undefined)
@@ -215,7 +360,7 @@ export default function DashboardPage() {
         const status = pct !== null
           ? (pct > 100 ? 'overBudget' as const : pct >= 80 ? 'warning' as const : 'safe' as const)
           : 'noBudget' as const
-        items.push({ name, spent: data.spent, budget, utilizationPercent: pct, status, categoryId: catId })
+        items.push({ name, spent: data.spent, budget, utilizationPercent: pct, status, categoryId: catId, icon: budgetInfo?.icon ?? null })
         seenIds.add(catId)
       }
       for (const [catId, info] of Object.entries(budgetLookup)) {
@@ -227,13 +372,14 @@ export default function DashboardPage() {
             utilizationPercent: info.budget !== null && info.budget > 0 ? 0 : null,
             status: 'safe',
             categoryId: catId,
+            icon: info.icon ?? null,
           })
         }
       }
     } else {
       for (const [catId, data] of spendByCategory) {
         const name = relationLookup?.[catId] || data.name
-        items.push({ name, spent: data.spent, budget: null, utilizationPercent: null, status: 'noBudget', categoryId: catId })
+        items.push({ name, spent: data.spent, budget: null, utilizationPercent: null, status: 'noBudget', categoryId: catId, icon: null })
       }
     }
 
@@ -248,7 +394,7 @@ export default function DashboardPage() {
     })
 
     return items
-  }, [filteredExpenses, state.expenseBudgetLookup, state.expenseRelationCategoryLookup])
+  }, [monthBudgetExpenses, state.expenseBudgetLookup, state.expenseRelationCategoryLookup])
 
   const budgetSummary = useMemo<BudgetUtilizationSummary>(() => {
     const budgetedItems = budgetItems.filter(i => i.budget !== null && i.budget > 0)
@@ -268,7 +414,6 @@ export default function DashboardPage() {
   const budgetProgress = totalBudget > 0 ? (totalSpend / totalBudget) * 100 : null
   const budgetRemaining = totalBudget > 0 ? remainingBudget : null
 
-  // At a Glance facts
   const atGlanceOverBudgetCount = budgetSummary.overBudgetCount
   const glanceFacts = useMemo(() => {
     const facts: { label: string; value: string; color: string }[] = []
@@ -284,11 +429,12 @@ export default function DashboardPage() {
       })
     }
 
-    if (topExpenseCategories.length > 0) {
-      facts.push({ label: 'Top Category', value: topExpenseCategories[0].name, color: 'text-[#F4EDE3]' })
+    const top3 = [...expCategories].slice(0, 3)
+    if (top3.length > 0) {
+      facts.push({ label: 'Top Category', value: top3[0].name, color: 'text-[#F4EDE3]' })
     }
 
-    const highest = filteredExpenses.reduce((max, e) => (e.amount > max ? e.amount : max), 0)
+    const highest = monthBudgetExpenses.reduce((max, e) => (e.amount > max ? e.amount : max), 0)
     if (highest > 0) {
       facts.push({ label: 'Highest', value: formatCurrency(highest), color: 'text-[#D49A4A]' })
     }
@@ -296,7 +442,7 @@ export default function DashboardPage() {
     const dayCounts = new Map<string, number>()
     let maxDay = 0
     let maxDayLabel = ''
-    for (const e of filteredExpenses) {
+    for (const e of monthBudgetExpenses) {
       const day = parseInt(e.date.split('-')[2])
       const c = (dayCounts.get(e.date) || 0) + 1
       dayCounts.set(e.date, c)
@@ -315,8 +461,7 @@ export default function DashboardPage() {
     }
 
     return facts
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalSpend, filteredExpenses, topExpenseCategories, atGlanceOverBudgetCount])
+  }, [totalSpend, monthBudgetExpenses, budgetItems, expCategories, atGlanceOverBudgetCount])
 
   const getGreeting = () => {
     const hour = now.getHours()
@@ -325,308 +470,187 @@ export default function DashboardPage() {
     return 'Good evening'
   }
 
-  // Hero summary sentence
   const summarySentence = useMemo(() => {
-    if (savingsRate !== null && savingsRate > 0) {
-      return `You saved ${savingsRate.toFixed(1)}% of your income this month.`
+    if (sr !== null && sr > 0) {
+      return `You saved ${sr.toFixed(1)}% of your income this period.`
     }
     if (budgetRemaining !== null && budgetRemaining > 0 && totalSpend > 0) {
       return `You are ${formatCurrency(budgetRemaining)} under budget this month.`
     }
-    if (netBalance < 0) {
-      return `You spent ${formatCurrency(Math.abs(netBalance))} more than you earned this month.`
+    if (net < 0) {
+      return `You spent ${formatCurrency(Math.abs(net))} more than you earned this period.`
     }
-    if (totalIncome === 0 && totalSpend > 0) {
-      return 'No income recorded yet this month.'
+    if (totalIncomeBudget === 0 && totalSpend > 0) {
+      return 'No income recorded yet this period.'
     }
-    if (totalIncome === 0 && totalSpend === 0) {
-      return 'No transactions yet this month.'
+    if (totalIncomeBudget === 0 && totalSpend === 0) {
+      return 'No transactions yet this period.'
     }
-    if (savingsRate !== null && savingsRate <= 0) {
-      return `Your spending exceeded income by ${formatCurrency(Math.abs(netBalance))} this month.`
+    if (sr !== null && sr <= 0) {
+      return `Your spending exceeded income by ${formatCurrency(Math.abs(net))} this period.`
     }
-    return `${getMonthLabel(activeMonth)} at a glance.`
-  }, [savingsRate, budgetRemaining, netBalance, totalIncome, totalSpend, activeMonth])
+    return 'Here\u2019s your financial overview.'
+  }, [sr, budgetRemaining, net, totalIncomeBudget, totalSpend])
 
-  if ((loading || !initialLoadAttempted) && expenses.length === 0 && incomes.length === 0) {
+  // Daily chart data for mini cashflow (for active month)
+  const dailyChartData = useMemo(() => {
+    const map = new Map<string, { income: number; expense: number }>()
+    for (const e of monthBudgetExpenses) {
+      const existing = map.get(e.date) || { income: 0, expense: 0 }
+      existing.expense += e.amount
+      map.set(e.date, existing)
+    }
+    for (const i of filteredIncomes) {
+      if (getMonthKey(i.date) !== activeMonth) continue
+      const existing = map.get(i.date) || { income: 0, expense: 0 }
+      existing.income += i.amount
+      map.set(i.date, existing)
+    }
+    const daysInMonth = new Date(parseInt(activeMonth.split('-')[0]), parseInt(activeMonth.split('-')[1]), 0).getDate()
+    const data: { day: number; income: number; expense: number }[] = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${activeMonth}-${String(d).padStart(2, '0')}`
+      const entry = map.get(dateStr) || { income: 0, expense: 0 }
+      data.push({ day: d, income: entry.income, expense: entry.expense })
+    }
+    return data
+  }, [monthBudgetExpenses, filteredIncomes, activeMonth])
+
+  if (loading && expenses.length === 0 && incomes.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1F1712]">
+      <div className="min-h-screen flex items-center justify-center bg-n-bg">
         <LoadingSpinner />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#1F1712]">
-      {/* ===== HERO SECTION ===== */}
+    <div className="min-h-screen bg-n-bg">
+      {/* ===== HERO ===== */}
       <div className="bg-gradient-to-r from-[#2A201A] to-[#6F4D2A] relative">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-white/3 blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-white/3 blur-3xl" />
           <div className="absolute top-6 right-1/3 w-40 h-40 rounded-full bg-white/3 blur-2xl" />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
-          {/* Two-column desktop layout */}
-          <div className="md:grid md:grid-cols-5 md:gap-8 md:items-start">
-
-            {/* LEFT COLUMN — Greeting, summary, actions */}
-            <div className="md:col-span-3 space-y-3">
-              <h1 className="text-[#F4EDE3] text-2xl md:text-3xl font-bold tracking-tight">
-                {getGreeting()} <span className="text-[#F4EDE3]">👋</span>
-              </h1>
-
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 md:py-6 pb-8 md:pb-10 relative z-10">
+          {/* Greeting + Month selector + Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5 md:mb-6">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3">
+                <h1 className="text-[#F4EDE3] text-xl md:text-2xl font-bold tracking-tight">
+                  {getGreeting()} <span>👋</span>
+                </h1>
+              </div>
               <p className="text-[#B8A99A] text-sm font-medium">
                 {summarySentence}
               </p>
-
-              <p className="text-[#B8A99A] text-xs">
-                {getMonthLabel(activeMonth)}
-                {transactionCount > 0 && ` · ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''}`}
-              </p>
-
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={loadData}
-                  className="w-9 h-9 rounded-full bg-white/3 backdrop-blur-sm hover:bg-[#F4EDE3]/30 flex items-center justify-center text-[#B8A99A] transition-colors"
-                  title="Refresh data"
-                >
-                  <RefreshCw size={16} />
-                </button>
-                <Link
-                  href="/add?role=expense"
-                  className="flex items-center gap-1.5 bg-[#D49A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#C1883A] transition-colors shadow-sm"
-                >
-                  <Plus size={16} />
-                  Add Transaction
-                </Link>
+              <div className="flex items-center gap-3">
+                <ScopeDropdown
+                  scope={scope}
+                  onScopeChange={(s) => { setScope(s); setCategoryFilter(null) }}
+                  monthKeys={monthKeys}
+                />
+                <span className="text-[#9B8778] text-xs">{txnCount} transactions</span>
               </div>
             </div>
-
-            {/* RIGHT COLUMN — Monthly Health Card */}
-            <div className="md:col-span-2 mt-5 md:mt-0">
-              <div className="bg-[#35281F]/90 backdrop-blur-sm rounded-2xl p-5 border border-[#5A4638] shadow-md">
-                <h3 className="text-[#B8A99A] text-[10px] font-semibold uppercase tracking-wider mb-4 text-center">
-                  Monthly Health
-                </h3>
-
-                {/* Savings Rate Ring */}
-                <div className="flex flex-col items-center mb-4">
-                  <div className="relative w-24 h-24">
-                    <svg className="w-24 h-24 -rotate-90" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="#6B5847" strokeWidth="3" />
-                      <circle
-                        cx="18" cy="18" r="15.5" fill="none"
-                        stroke={savingsRate !== null && savingsRate >= 0 ? '#93B889' : '#D8755D'}
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeDasharray={savingsRate !== null
-                          ? `${2 * Math.PI * 15.5 * Math.min(Math.abs(savingsRate) / 100, 1)} ${2 * Math.PI * 15.5 * (1 - Math.min(Math.abs(savingsRate) / 100, 1))}`
-                          : `0 ${2 * Math.PI * 15.5}`}
-                      />
-                    </svg>
-                    <span className={`absolute inset-0 flex items-center justify-center text-xl font-bold ${savingsRate !== null && savingsRate >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
-                      {savingsRate !== null ? `${savingsRate.toFixed(0)}%` : 'N/A'}
-                    </span>
-                  </div>
-                  <p className="text-[#B8A99A] text-[11px] mt-1">Savings Rate</p>
-                </div>
-
-                {/* Health details */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between py-1.5 px-3 bg-[#403027] rounded-xl">
-                    <span className="text-[#B8A99A] text-xs">Saved</span>
-                    <span className={`text-sm font-bold ${netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
-                      {netBalance >= 0 ? '+' : '-'}{formatCurrency(netBalance)}
-                    </span>
-                  </div>
-
-                  {budgetRemaining !== null ? (
-                    <>
-                      <div className="flex items-center justify-between py-1.5 px-3 bg-[#403027] rounded-xl">
-                        <span className="text-[#B8A99A] text-xs">Budget Left</span>
-                        <span className={`text-sm font-bold ${budgetRemaining >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
-                          {budgetRemaining >= 0 ? formatCurrency(budgetRemaining) : `${formatCurrency(Math.abs(budgetRemaining))} over`}
-                        </span>
-                      </div>
-
-                      <div className="py-1.5 px-3 bg-[#403027] rounded-xl">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[#B8A99A] text-xs">Budget Used</span>
-                          <span className={`text-xs font-semibold ${budgetProgress !== null && budgetProgress > 100 ? 'text-[#D8755D]' : budgetProgress !== null && budgetProgress >= 80 ? 'text-[#D49A4A]' : 'text-[#93B889]'}`}>
-                            {budgetProgress !== null ? `${Math.round(budgetProgress)}%` : '—'}
-                          </span>
-                        </div>
-                        <div className="w-full h-2 bg-[#6B5847] rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(budgetProgress ?? 0, 100)}%`,
-                              backgroundColor: budgetProgress !== null && budgetProgress > 100 ? '#D8755D'
-                                : budgetProgress !== null && budgetProgress >= 80 ? '#D49A4A'
-                                : '#93B889',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="py-2 px-3 bg-[#403027] rounded-xl text-center">
-                      <p className="text-[#B8A99A] text-xs">No budget set for this month</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={loadData}
+                className="w-9 h-9 rounded-full bg-white/3 backdrop-blur-sm hover:bg-[#F4EDE3]/30 flex items-center justify-center text-[#B8A99A] transition-colors"
+                title="Refresh data"
+              >
+                <RefreshCw size={16} />
+              </button>
+              <Link
+                href="/add?role=expense"
+                className="flex items-center gap-1.5 bg-[#D49A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#C1883A] transition-colors shadow-sm"
+              >
+                <Plus size={16} />
+                Add Transaction
+              </Link>
             </div>
+          </div>
 
+          {/* Overview stat cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <OverviewStatCard
+              label="Current Balance"
+              value={formatCurrency(net)}
+              subtitle={net >= 0 ? 'Positive' : 'Negative'}
+              valueColor={net >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}
+              icon={<DollarSign size={14} className={net >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'} />}
+            />
+            <OverviewStatCard
+              href={`/income?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`}
+              label="Monthly Income"
+              value={formatCurrency(inc)}
+              subtitle={`${incomeCount} transaction${incomeCount !== 1 ? 's' : ''}`}
+              valueColor="text-[#93B889]"
+              icon={<TrendingUp size={14} className="text-[#93B889]" />}
+            />
+            <OverviewStatCard
+              href={`/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`}
+              label="Monthly Expenses"
+              value={formatCurrency(exp)}
+              subtitle={`${expenseCount} transaction${expenseCount !== 1 ? 's' : ''}`}
+              valueColor="text-[#D8755D]"
+              icon={<Receipt size={14} className="text-[#D8755D]" />}
+            />
+            <OverviewStatCard
+              onClick={budgetRemaining !== null ? scrollToBudget : undefined}
+              label={budgetRemaining !== null ? 'Budget Left' : 'Balance'}
+              value={budgetRemaining !== null ? formatCurrency(budgetRemaining) : formatCurrency(net)}
+              subtitle={getMonthLabel(activeMonth)}
+              valueColor={budgetRemaining !== null ? (budgetRemaining >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]') : net >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}
+              icon={<Wallet size={14} className={budgetRemaining !== null && budgetRemaining >= 0 ? 'text-[#93B889]' : budgetRemaining !== null ? 'text-[#D8755D]' : 'text-[#D49A4A]'} />}
+            />
+            <OverviewStatCard
+              label="Savings Rate"
+              value={sr !== null ? `${sr.toFixed(0)}%` : 'N/A'}
+              subtitle="of income saved"
+              valueColor={sr !== null && sr >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}
+              icon={<PieChart size={14} className={sr !== null && sr >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'} />}
+            />
+            <OverviewStatCard
+              href={`/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`}
+              label="Transactions"
+              value={txnCount.toString()}
+              subtitle={getMonthLabel(activeMonth)}
+              valueColor="text-[#F4EDE3]"
+              icon={<List size={14} className="text-[#D49A4A]" />}
+            />
           </div>
         </div>
       </div>
 
       {/* ===== MAIN CONTENT PANEL ===== */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 md:mt-8 pb-8 md:pb-12">
-        <div className="bg-[#2A201A] border border-[#5A4638] rounded-2xl shadow-lg p-5 md:p-8 space-y-7">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 -mt-4 md:-mt-6 pb-8 md:pb-12 relative z-20">
+        <div className="bg-n-panel rounded-t-3xl md:rounded-t-[40px] border-t border-n-border-soft shadow-[0_-4px_28px_rgba(0,0,0,0.4)] pt-6 md:pt-10 pb-8 md:pb-12 px-5 md:px-8 lg:px-10 space-y-6 md:space-y-8">
 
-          {/* Section: Overview Cards */}
-          <div>
-            <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
-              Overview
-            </h3>
+          {/* Month selector */}
+          <AnalyticsFilterBar
+            scope={scope}
+            onScopeChange={(s) => { setScope(s); setCategoryFilter(null) }}
+            availableMonthKeys={monthKeys}
+            transactionCount={txnCount}
+          />
 
-            {/* Row 1: Large balance + income/expense stack */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
-              {/* Large Balance Card */}
-              <div className="md:col-span-3 bg-[#35281F] rounded-2xl p-5 border border-[#6B5847] flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[#B8A99A] text-xs font-medium">Current Balance</p>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${netBalance >= 0 ? 'bg-[#93B889]/10' : 'bg-[#D8755D]/10'}`}>
-                    <DollarSign size={20} className={netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'} />
-                  </div>
-                </div>
-                <p className={`text-3xl font-bold tracking-tight ${netBalance >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
-                  {netBalance >= 0 ? '+' : '-'}${Math.abs(netBalance).toFixed(2)}
-                </p>
-                <p className="text-[#B8A99A] text-xs mt-1">
-                  {netBalance >= 0 ? 'You\u2019re in the green this month' : 'Overspending this month'}
-                </p>
-              </div>
+          {/* Income vs Expense Chart */}
+          <IncomeVsExpenseChart
+            dailyData={dailyData}
+            monthlyData={monthlyData}
+            scope={scope}
+          />
 
-              <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-[#93B889]/8 rounded-2xl p-4 border border-[#6B5847]">
-                  <div className="w-9 h-9 rounded-xl bg-[#93B889]/12 flex items-center justify-center mb-2">
-                    <TrendingUp size={18} className="text-[#93B889]" />
-                  </div>
-                  <p className="text-[#B8A99A] text-xs">Monthly Income</p>
-                  <p className="text-lg font-bold text-[#93B889] mt-0.5">+${totalIncome.toFixed(2)}</p>
-                  <p className="text-[#B8A99A] text-[10px] mt-0.5">
-                    {filteredIncomes.length} transaction{filteredIncomes.length !== 1 ? 's' : ''}
-                  </p>
-                  <button
-                    onClick={() => router.push(`/income?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`)}
-                    className="text-[#D49A4A] text-[10px] font-medium hover:underline mt-1"
-                  >
-                    View details →
-                  </button>
-                </div>
-
-                <div className="bg-[#D8755D]/8 rounded-2xl p-4 border border-[#6B5847]">
-                  <div className="w-9 h-9 rounded-xl bg-[#D8755D]/12 flex items-center justify-center mb-2">
-                    <Receipt size={18} className="text-[#D8755D]" />
-                  </div>
-                  <p className="text-[#B8A99A] text-xs">Monthly Expenses</p>
-                  <p className="text-lg font-bold text-[#D8755D] mt-0.5">-${totalSpend.toFixed(2)}</p>
-                  <p className="text-[#B8A99A] text-[10px] mt-0.5">
-                    {filteredExpenses.length} transaction{filteredExpenses.length !== 1 ? 's' : ''}
-                  </p>
-                  <button
-                    onClick={() => router.push(`/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}`)}
-                    className="text-[#D49A4A] text-[10px] font-medium hover:underline mt-1"
-                  >
-                    View details →
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2: Three smaller cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-[#7DA67A]/8 rounded-2xl p-4 border border-[#6B5847]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#93B889]/12 flex items-center justify-center shrink-0">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#93B889" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[#B8A99A] text-xs">Savings</p>
-                    <p className={`text-lg font-bold ${savingsRate !== null && savingsRate >= 0 ? 'text-[#93B889]' : 'text-[#D8755D]'}`}>
-                      {savingsRate !== null ? `${savingsRate.toFixed(1)}%` : 'N/A'}
-                    </p>
-                    <p className="text-[#B8A99A] text-[10px] mt-0.5">
-                      {savingsRate !== null ? (savingsRate >= 0 ? 'of income saved' : 'overspending') : 'No income'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#D49A4A]/8 rounded-2xl p-4 border border-[#6B5847]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#D49A4A]/12 flex items-center justify-center shrink-0">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D49A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[#B8A99A] text-xs">Budget Remaining</p>
-                    <p className={`text-lg font-bold ${budgetRemaining !== null && budgetRemaining >= 0 ? 'text-[#93B889]' : 'text-[#F4EDE3]'}`}>
-                      {budgetRemaining !== null ? `$${budgetRemaining.toFixed(0)}` : '—'}
-                    </p>
-                    <p className="text-[#B8A99A] text-[10px] mt-0.5">
-                      {budgetProgress !== null ? `${Math.round(budgetProgress)}% used` : 'No budget set'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#D49A4A]/8 rounded-2xl p-4 border border-[#6B5847]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#D49A4A]/12 flex items-center justify-center shrink-0">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D49A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[#B8A99A] text-xs">This Month</p>
-                    <p className="text-lg font-bold text-[#F4EDE3]">{transactionCount}</p>
-                    <p className="text-[#B8A99A] text-[10px] mt-0.5">
-                      {filteredExpenses.length} expense{filteredExpenses.length !== 1 ? 's' : ''}, {filteredIncomes.length} income
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: This Month at a Glance + Mini Chart */}
+          {/* At a Glance + Mini Cashflow */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <AtAGlanceCard items={glanceFacts} />
-
-            {/* Mini Cash Flow Chart */}
-            <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847]">
+            <div className="bg-n-surface rounded-2xl p-4 border border-n-border-soft">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider">
+                <h3 className="text-n-text-muted text-xs font-semibold uppercase tracking-wider">
                   Cash Flow This Month
                 </h3>
-                <Link
-                  href="/analytics"
-                  className="text-[#D49A4A] text-[10px] font-medium hover:underline"
-                >
-                  View Analytics →
-                </Link>
               </div>
               {dailyChartData.some(d => d.income > 0 || d.expense > 0) ? (
                 <ResponsiveContainer width="100%" height={140}>
@@ -644,185 +668,125 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex items-center justify-center h-[140px]">
-                  <p className="text-[#B8A99A] text-xs">No daily data yet this month</p>
+                  <p className="text-n-text-muted text-xs">No daily data yet this month</p>
                 </div>
               )}
               <div className="flex items-center gap-4 mt-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#93B889]" />
-                  <span className="text-[#B8A99A] text-[10px]">Income</span>
+                  <span className="w-2 h-2 rounded-full bg-n-income" />
+                  <span className="text-n-text-muted text-xs">Income</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#D8755D]" />
-                  <span className="text-[#B8A99A] text-[10px]">Expenses</span>
+                  <span className="w-2 h-2 rounded-full bg-n-expense" />
+                  <span className="text-n-text-muted text-xs">Expenses</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Section: Monthly Budget */}
-          <MonthlyBudgetGrid
-            items={budgetItems}
-            summary={budgetSummary}
-            onCategoryClick={(item) => router.push(
-              `/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}&category=${encodeURIComponent(item.name)}`
-            )}
-            totalBudget={totalBudget}
-            totalSpend={totalSpend}
-            budgetProgress={budgetProgress}
-            budgetRemaining={budgetRemaining}
-          />
-
-          {/* Section: Recent Activity + Top Categories */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Activity Timeline */}
-            <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider">
-                  Recent Activity
-                </h3>
-                <button
-                  onClick={() => router.push('/expenses')}
-                  className="text-[#D49A4A] text-xs font-medium hover:underline"
-                >
-                  View all
-                </button>
-              </div>
-              {recentTransactions.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-[#B8A99A] text-xs">No transactions yet this month</p>
-                  <Link
-                    href="/add?role=expense"
-                    className="inline-block mt-2 text-[#D49A4A] text-xs font-medium hover:underline"
-                  >
-                    Add your first →
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-0">
-                  {recentTransactions.map((txn, idx) => {
-                    const isExpense = txn.databaseRole === 'expense'
-                    return (
-                      <div key={txn.id} className="flex items-start gap-3 py-2.5 relative">
-                        {idx < recentTransactions.length - 1 && (
-                          <div className="absolute left-[11px] top-8 bottom-0 w-px bg-[#6B5847]" />
-                        )}
-                        <div
-                          className={`w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                            isExpense ? 'bg-[#D8755D]/12' : 'bg-[#93B889]/12'
-                          }`}
-                        >
-                          <div className={`w-2 h-2 rounded-full ${isExpense ? 'bg-[#D8755D]' : 'bg-[#93B889]'}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[#F4EDE3] text-sm font-medium truncate">{txn.title}</p>
-                            <span
-                              className={`text-sm font-bold shrink-0 ml-2 ${
-                                isExpense ? 'text-[#D8755D]' : 'text-[#93B889]'
-                              }`}
-                            >
-                              {isExpense ? '-' : '+'}${txn.amount.toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="text-[#B8A99A] text-[11px] mt-0.5">
-                            {txn.category || 'Uncategorized'}
-                            <span className="mx-1">·</span>
-                            {new Date(txn.date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+          {/* Monthly Budget */}
+          <DashboardSection title="Monthly Budget" id="monthly-budget">
+            <MonthlyBudgetGrid
+              items={budgetItems}
+              summary={budgetSummary}
+              onCategoryClick={(item) => router.push(
+                `/expenses?monthFrom=${monthRange.monthFrom}&monthTo=${monthRange.monthTo}&category=${encodeURIComponent(item.name)}`
               )}
-            </div>
+              totalBudget={totalBudget}
+              totalSpend={totalSpend}
+              budgetProgress={budgetProgress}
+              budgetRemaining={budgetRemaining}
+            />
+          </DashboardSection>
 
-            {/* Top Categories Preview */}
-            <div className="bg-[#35281F] rounded-2xl p-4 border border-[#6B5847]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider">
-                  Top Categories
-                </h3>
+          {/* Category Breakdowns */}
+          <DashboardSection title="Spending Breakdown" subtitle="Expenses and income by category">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+              <ExpenseCategoryBreakdown
+                categories={expCategories}
+                onCategoryClick={(name) => setCategoryFilter(name === categoryFilter ? null : name)}
+              />
+              <IncomeCategoryBreakdown
+                categories={incCategories}
+                totalIncome={inc}
+                onCategoryClick={(name) => setCategoryFilter(name === categoryFilter ? null : name)}
+              />
+            </div>
+          </DashboardSection>
+
+          {/* Spending Trend + Top Categories */}
+          <DashboardSection title="Trends">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+              <SpendingTrend
+                dailyData={dailyData}
+                monthlyData={monthlyData}
+                scope={scope}
+                allExpenses={exp}
+              />
+              <TopSpendingCategories
+                categories={topCategories}
+                totalExpenses={exp}
+              />
+            </div>
+          </DashboardSection>
+
+          {/* Biggest Transactions + MoM */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <BiggestTransactions
+              biggestExpense={biggestExp}
+              biggestIncome={biggestInc}
+            />
+            <MonthOverMonthComparison
+              comparison={momComparison}
+            />
+          </div>
+
+          {/* Insights */}
+          <DashboardSection title="Insights">
+            <SmartInsights
+              insights={insights}
+            />
+          </DashboardSection>
+
+          {/* Transactions Table */}
+          <DashboardSection title="Transactions">
+            <FilteredTransactionsTable
+              transactions={filteredTransactions}
+              activeCategoryFilter={categoryFilter}
+              onCategoryFilter={setCategoryFilter}
+              totalIncome={tableIncome}
+              totalExpenses={tableExpenses}
+            />
+          </DashboardSection>
+
+          {/* Quick Actions */}
+          <DashboardSection title="Quick Actions">
+            <div className="bg-n-surface-2 rounded-2xl p-5 border border-n-border-soft">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <Link
-                  href="/analytics"
-                  className="text-[#D49A4A] text-xs font-medium hover:underline"
+                  href="/add?role=expense"
+                  className="flex items-center gap-2 bg-n-expense text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
                 >
-                  Full analytics →
+                  <Receipt size={16} />
+                  Add Expense
+                </Link>
+                <Link
+                  href="/add?role=income"
+                  className="flex items-center gap-2 bg-n-income text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
+                >
+                  <TrendingUp size={16} />
+                  Add Income
+                </Link>
+                <Link
+                  href="/split-tracker"
+                  className="flex items-center gap-2 bg-n-accent text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-n-accent-hover transition-opacity shadow-sm"
+                >
+                  <Users size={16} />
+                  Split Tracker
                 </Link>
               </div>
-              {topExpenseCategories.length === 0 ? (
-                <p className="text-[#B8A99A] text-xs py-8 text-center">No expenses this month</p>
-              ) : (
-                <div className="space-y-4">
-                  {topExpenseCategories.map((cat, index) => {
-                    const pct = totalSpend > 0 ? (cat.spent / totalSpend) * 100 : 0
-                    const colors = ['#D8755D', '#D49A4A', '#D49A4A']
-                    const color = colors[index]
-                    return (
-                      <div key={cat.name}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white shrink-0" style={{ backgroundColor: color }}>
-                              {index + 1}
-                            </span>
-                            <span className="text-[#F4EDE3] text-sm font-medium truncate">{cat.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-2">
-                            <span className="text-[#F4EDE3] text-sm font-bold">${cat.spent.toFixed(0)}</span>
-                            <span className="text-[#B8A99A] text-[10px]">{pct.toFixed(0)}%</span>
-                          </div>
-                        </div>
-                        <div className="w-full h-2 bg-[#6B5847] rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-          </div>
-
-          {/* Section: Quick Actions */}
-          <div className="bg-[#403027] rounded-2xl p-5 border border-[#6B5847]">
-            <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-4 text-center">
-              Quick Actions
-            </h3>
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Link
-                href="/add?role=expense"
-                className="flex items-center gap-2 bg-[#D8755D] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
-              >
-                <Receipt size={16} />
-                Add Expense
-              </Link>
-              <Link
-                href="/add?role=income"
-                className="flex items-center gap-2 bg-[#93B889] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
-              >
-                <TrendingUp size={16} />
-                Add Income
-              </Link>
-              <Link
-                href="/analytics"
-                className="flex items-center gap-2 bg-[#D49A4A] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
-              >
-                <BarChart3 size={16} />
-                View Analytics
-              </Link>
-              <Link
-                href="/split-tracker"
-                className="flex items-center gap-2 bg-[#D49A4A] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#C1883A] transition-opacity shadow-sm"
-              >
-                <Users size={16} />
-                Split Tracker
-              </Link>
-            </div>
-          </div>
+          </DashboardSection>
 
         </div>
       </div>

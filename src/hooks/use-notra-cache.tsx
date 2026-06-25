@@ -16,7 +16,7 @@ interface CacheState {
   incomeRelationCategoryLookup: Record<string, string> | null
   expenseMonthClassificationLookup: Record<string, string> | null
   incomeMonthClassificationLookup: Record<string, string> | null
-  expenseBudgetLookup: Record<string, { name: string; budget: number | null }> | null
+  expenseBudgetLookup: Record<string, { name: string; budget: number | null; icon: string | null }> | null
 }
 
 type CacheAction =
@@ -34,7 +34,7 @@ type CacheAction =
   | { type: 'SET_INCOME_MC_LOOKUP'; payload: Record<string, string> | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_EXPENSE_BUDGET_LOOKUP'; payload: Record<string, { name: string; budget: number | null }> | null }
+  | { type: 'SET_EXPENSE_BUDGET_LOOKUP'; payload: Record<string, { name: string; budget: number | null; icon: string | null }> | null }
 
 const initialState: CacheState = {
   expenses: [],
@@ -183,11 +183,11 @@ export function CacheProvider({ children }: { children: ReactNode }) {
   const buildBudgetLookup = async (
     token: string,
     relationDbId: string
-  ): Promise<Record<string, { name: string; budget: number | null }> | null> => {
+  ): Promise<Record<string, { name: string; budget: number | null; icon: string | null }> | null> => {
     const budgetKeywords = ['monthly budget', 'budget', 'limit', 'monthly limit', 'planned', 'target', 'cap']
 
-    const extractBudgetData = (rows: Array<Record<string, unknown>>): Record<string, { name: string; budget: number | null }> => {
-      const result: Record<string, { name: string; budget: number | null }> = {}
+    const extractBudgetData = (rows: Array<Record<string, unknown>>): Record<string, { name: string; budget: number | null; icon: string | null }> => {
+      const result: Record<string, { name: string; budget: number | null; icon: string | null }> = {}
       for (const row of rows) {
         const props = (row.properties || {}) as Record<string, unknown>
         const titleProp = Object.values(props).find(
@@ -195,6 +195,9 @@ export function CacheProvider({ children }: { children: ReactNode }) {
         ) as Record<string, unknown> | undefined
         const name = safeExtractText(titleProp?.title).trim()
         if (!name) continue
+
+        const rawIcon = row.icon as Record<string, unknown> | undefined
+        const icon = rawIcon?.type === 'emoji' ? (rawIcon.emoji as string | undefined) ?? null : null
 
         let budget: number | null = null
         for (const [propKey, propEntry] of Object.entries(props)) {
@@ -211,7 +214,7 @@ export function CacheProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-        result[row.id as string] = { name, budget }
+        result[row.id as string] = { name, budget, icon }
       }
       return result
     }

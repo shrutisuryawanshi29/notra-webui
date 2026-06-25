@@ -7,6 +7,7 @@ interface BudgetCategoryItem {
   utilizationPercent: number | null
   status: 'overBudget' | 'warning' | 'safe' | 'noBudget'
   categoryId: string | null
+  icon?: string | null
 }
 
 interface BudgetUtilizationSummary {
@@ -26,27 +27,7 @@ interface MonthlyBudgetGridProps {
   budgetRemaining?: number | null
 }
 
-function IconForCategory(name: string): { icon: string; color: string } {
-  const lower = name.toLowerCase()
-  if (/grocery|food|groceries/.test(lower)) return { icon: '🛒', color: '' }
-  if (/restaurant|dining|eat|takeout/.test(lower)) return { icon: '🍽️', color: '' }
-  if (/transport|car|gas|fuel|uber|lyft|travel/.test(lower)) return { icon: '🚗', color: '' }
-  if (/rent|home|house|mortgage/.test(lower)) return { icon: '🏠', color: '' }
-  if (/shopping|retail|clothing/.test(lower)) return { icon: '🛍️', color: '' }
-  if (/subscription|membership/.test(lower)) return { icon: '🔄', color: '' }
-  if (/entertainment|movie|game|ticket/.test(lower)) return { icon: '🎬', color: '' }
-  if (/vacation|hotel|flight|airplane/.test(lower)) return { icon: '✈️', color: '' }
-  if (/health|medical|doctor|insurance|pharmacy/.test(lower)) return { icon: '❤️', color: '' }
-  if (/utility|electric|water|internet|phone|bill/.test(lower)) return { icon: '⚡', color: '' }
-  if (/education|school|course|class|tuition/.test(lower)) return { icon: '📚', color: '' }
-  if (/gift|donation|charity|present/.test(lower)) return { icon: '🎁', color: '' }
-  if (/pet|veterinary|animal/.test(lower)) return { icon: '🐾', color: '' }
-  if (/miscellaneous|other|general|uncategorized|misc/.test(lower)) return { icon: '🔖', color: '' }
-  return { icon: '🏷️', color: '' }
-}
-
 function BudgetCategoryCard({ item, onClick }: { item: BudgetCategoryItem; onClick?: () => void }) {
-  const { icon } = IconForCategory(item.name)
   const progress = item.utilizationPercent !== null ? Math.min(item.utilizationPercent / 100, 1) : 0
   const statusColor = item.status === 'overBudget' ? '#D8755D'
     : item.status === 'warning' ? '#D49A4A'
@@ -74,11 +55,11 @@ function BudgetCategoryCard({ item, onClick }: { item: BudgetCategoryItem; onCli
     >
       <div className="flex items-center gap-2.5">
         <div className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0" style={{ backgroundColor: `${statusColor}18` }}>
-          {icon}
+          {item.icon || '🏷️'}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[#F4EDE3] text-sm font-semibold truncate">{item.name}</p>
-          <p className="text-[#B8A99A] text-[10px]">
+          <p className="text-[#B8A99A] text-xs">
             {item.budget !== null ? `Budget $${item.budget.toFixed(0)}` : 'No limit set'}
           </p>
         </div>
@@ -107,7 +88,7 @@ function BudgetCategoryCard({ item, onClick }: { item: BudgetCategoryItem; onCli
           <div className="flex items-center justify-between">
             <span className="text-[#F4EDE3] text-sm font-bold">${item.spent.toFixed(0)}</span>
             {item.budget !== null && (
-              <span className="text-[#B8A99A] text-[10px]">of ${item.budget.toFixed(0)}</span>
+              <span className="text-[#B8A99A] text-xs">of ${item.budget.toFixed(0)}</span>
             )}
           </div>
           <div className="mt-1 w-full h-1.5 bg-[#6B5847] rounded-full overflow-hidden">
@@ -140,28 +121,20 @@ export default function MonthlyBudgetGrid({ items, summary, onCategoryClick, tot
 
   if (items.length === 0) {
     return (
-      <section>
-        <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider mb-3">
-          Monthly Budget
-        </h3>
-        <div className="bg-[#35281F] rounded-2xl p-6 border border-[#6B5847] text-center">
-          <p className="text-[#B8A99A] text-sm">No budget categories found</p>
-          <p className="text-[#B8A99A] text-xs mt-1">Add budget limits as a number column in your Notion category database</p>
-        </div>
-      </section>
+      <div className="bg-[#35281F] rounded-2xl p-6 border border-[#6B5847] text-center">
+        <p className="text-[#B8A99A] text-sm">No budget categories found</p>
+        <p className="text-[#B8A99A] text-xs mt-1">Add budget limits as a number column in your Notion category database</p>
+      </div>
     )
   }
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[#B8A99A] text-xs font-semibold uppercase tracking-wider">
-          Monthly Budget
-        </h3>
-        {summaryText && (
-          <span className="text-[#B8A99A] text-[10px]">{summaryText}</span>
-        )}
-      </div>
+      {summaryText && (
+        <div className="flex items-center justify-end mb-4">
+          <span className="text-[#B8A99A] text-xs">{summaryText}</span>
+        </div>
+      )}
 
       {/* Budget Health Summary */}
       {totalBudget !== undefined && totalBudget > 0 && (
@@ -192,9 +165,9 @@ export default function MonthlyBudgetGrid({ items, summary, onCategoryClick, tot
             />
           </div>
           <div className="flex justify-between mt-1">
-            <span className="text-[#B8A99A] text-[10px]">0%</span>
-            <span className="text-[#B8A99A] text-[10px]">{(budgetProgress != null ? Math.round(budgetProgress) : 0)}% used</span>
-            <span className="text-[#B8A99A] text-[10px]">100%</span>
+            <span className="text-[#B8A99A] text-xs">0%</span>
+            <span className="text-[#B8A99A] text-xs">{(budgetProgress != null ? Math.round(budgetProgress) : 0)}% used</span>
+            <span className="text-[#B8A99A] text-xs">100%</span>
           </div>
         </div>
       )}

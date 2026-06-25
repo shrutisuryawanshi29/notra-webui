@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Receipt,
   TrendingUp,
-  BarChart3,
   Users,
   Settings,
   Plus,
@@ -19,7 +18,6 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/expenses', label: 'Expenses', icon: Receipt },
   { href: '/income', label: 'Income', icon: TrendingUp },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/split-tracker', label: 'Split Tracker', icon: Users },
 ]
 

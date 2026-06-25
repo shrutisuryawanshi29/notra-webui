@@ -95,6 +95,7 @@ export default function SpendingTrend({ dailyData, monthlyData, scope, allExpens
           />
           <Tooltip
             content={<CustomTooltip />}
+            cursor={{ fill: 'transparent' }}
             labelFormatter={(_label: React.ReactNode, payload: ReadonlyArray<any>) => (payload[0]?.payload?.tooltipLabel ?? _label) as string}
           />
           <Area
