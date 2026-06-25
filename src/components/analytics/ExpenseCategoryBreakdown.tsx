@@ -48,20 +48,18 @@ export default function ExpenseCategoryBreakdown({ categories, onCategoryClick }
       <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-0.5">Where is my money going?</h3>
       <p className="text-[#B8A99A] text-xs mb-4">Expense Category Breakdown</p>
       <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-shrink-0 flex items-center justify-center">
-          <ResponsiveContainer width={250} height={250}>
+        <div className="w-full lg:w-[240px] flex-shrink-0 flex items-center justify-center">
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie
                 data={topCategories}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
+                innerRadius={55}
                 outerRadius={100}
                 paddingAngle={2}
                 dataKey="spent"
                 nameKey="name"
-                label={({ percent }: { percent?: number }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                labelLine={true}
               >
                 {topCategories.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -71,7 +69,7 @@ export default function ExpenseCategoryBreakdown({ categories, onCategoryClick }
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex-1 space-y-2.5">
+        <div className="flex-1 min-w-0 space-y-2">
           {categories.map((cat, index) => (
             <button
               key={cat.name}
@@ -83,7 +81,7 @@ export default function ExpenseCategoryBreakdown({ categories, onCategoryClick }
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: COLORS[index % COLORS.length] }}
                 />
-                <span className="text-[#F4EDE3] text-sm truncate">{cat.name}</span>
+                <span className="text-[#F4EDE3] text-sm truncate" title={cat.name}>{cat.name}</span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-[#D8755D] text-xs font-medium tracking-tight">{formatCurrency(cat.spent)}</span>

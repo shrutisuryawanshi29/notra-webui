@@ -23,18 +23,18 @@ export default function TopSpendingCategories({ categories, totalExpenses }: Top
 
   return (
     <Card>
-      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-3">Top Spending Categories</h3>
-      <div className="space-y-3">
+      <h3 className="text-[#F4EDE3] text-sm font-semibold tracking-wider mb-4">Top Spending Categories</h3>
+      <div className="space-y-4">
         {categories.map((cat, index) => (
           <div key={cat.name}>
-            <div className="flex items-center gap-2">
-              <span className="text-[#B8A99A] text-xs font-bold w-5">{index + 1}</span>
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} />
-              <span className="text-[#F4EDE3] text-sm flex-1 truncate">{cat.name}</span>
-              <span className="text-[#D8755D] text-sm font-medium tracking-tight">{formatCurrency(cat.spent)}</span>
-              <span className="text-[#B8A99A] text-xs">{formatPercent(cat.percentage)}</span>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[#B8A99A] text-xs font-bold w-5 shrink-0">{index + 1}</span>
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} />
+              <span className="text-[#F4EDE3] text-sm flex-1 truncate" title={cat.name}>{cat.name}</span>
+              <span className="text-[#D8755D] text-sm font-medium tracking-tight shrink-0">{formatCurrency(cat.spent)}</span>
+              <span className="text-[#B8A99A] text-xs shrink-0 w-12 text-right">{formatPercent(cat.percentage)}</span>
             </div>
-            <div className="mt-1.5 ml-9 w-full h-1 bg-[#6B5847] rounded-full overflow-hidden">
+            <div className="ml-7 w-full md:w-3/4 h-1.5 bg-[#6B5847] rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{ width: `${cat.percentage}%`, backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
@@ -46,5 +46,3 @@ export default function TopSpendingCategories({ categories, totalExpenses }: Top
     </Card>
   )
 }
-
-TopSpendingCategories.displayName = 'TopSpendingCategories'
