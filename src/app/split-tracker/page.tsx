@@ -1,24 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { isSetupComplete, loadConfig, getExpenseConfig } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
-import { SplitTrackerPersonGroup } from '@/types/transaction'
 import { extractSplitTrackerEntries, groupSplitTrackerEntries, getSplitMethodLabel } from '@/lib/split-metadata'
 import { stablePersonId } from '@/lib/notion-properties'
 import { buildUpdatedSplitDetails } from '@/lib/notion-payload'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 
 type FilterMode = 'all' | 'pending' | 'settled'
+
+const ZERO_THRESHOLD = 0.005
 
 export default function SplitTrackerPage() {
   const router = useRouter()
   const { state, loadData } = useCache()
   const [filter, setFilter] = useState<FilterMode>('all')
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!isSetupComplete()) {
@@ -38,6 +40,15 @@ export default function SplitTrackerPage() {
 
   const totalPendingOwed = groups.reduce((s, g) => s + g.pendingTotal, 0)
   const totalSettled = groups.reduce((s, g) => s + g.settledTotal, 0)
+
+  const toggleExpand = useCallback((key: string) => {
+    setExpandedEntries(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   const toggleSettlement = async (
     transactionId: string,
@@ -139,12 +150,12 @@ export default function SplitTrackerPage() {
                   {group.personName}
                 </h3>
                 <div className="flex gap-3 text-xs">
-                  {group.pendingTotal > 0 && (
+                  {group.pendingTotal > ZERO_THRESHOLD && (
                     <span className="text-[#D49A4A] tracking-tight">
                       Pending: ${group.pendingTotal.toFixed(2)}
                     </span>
                   )}
-                  {group.settledTotal > 0 && (
+                  {group.settledTotal > ZERO_THRESHOLD && (
                     <span className="text-[#93B889] tracking-tight">
                       Settled: ${group.settledTotal.toFixed(2)}
                     </span>
@@ -153,14 +164,15 @@ export default function SplitTrackerPage() {
               </div>
               <div className="space-y-2">
                 {group.entries.map((entry) => {
+                  const entryKey = `${entry.transactionId}-${entry.participantId}`
                   const split = entry.splitMetadata.split
                   const paidAmount = split.paidAmount || entry.transaction.paidAmount || entry.transaction.amount || 0
                   const myShare = split.myShare || entry.transaction.amount || 0
                   const owes = entry.amountOwed
                   const method = split.type
                   const methodLabel = getSplitMethodLabel(method)
+                  const isReceipt = method === 'receiptMultiPerson'
 
-                  // Resolve the participant's original ID (UUID from receipt scan) to match against item sharedWith arrays
                   const origParticipant = split.participants.find(
                     p => p.id === entry.participantId
                   ) || split.participants.find(
@@ -168,62 +180,101 @@ export default function SplitTrackerPage() {
                   )
                   const origId = origParticipant?.id || entry.participantId
 
-                  // Filter shared items for this participant
-                  const items = (split.items || []).filter(
-                    item => item.assignment === 'shared' && item.sharedWith.includes(origId)
+                  const allItems = (split.items || []).filter(
+                    item => item.assignment !== 'ignore'
                   )
+
+                  const participantItems = allItems.filter(
+                    item =>
+                      item.assignment === 'everyone' ||
+                      item.sharedWith.includes(origId)
+                  )
+
+                  const displayItems = participantItems.length > 0 ? participantItems : allItems
+                  const itemCount = displayItems.length
+                  const isExpanded = expandedEntries.has(entryKey)
+
+                  const categories = [...new Set(
+                    displayItems.map(i => i.category).filter(Boolean)
+                  )] as string[]
+                  const categorySummary = categories.length > 0
+                    ? categories.join(', ')
+                    : (entry.category || '')
 
                   return (
                     <div
-                      key={`${entry.transactionId}-${entry.participantId}`}
-                      className="flex items-start justify-between py-2 border-b border-[#5A4638]/30 last:border-0 gap-3"
+                      key={entryKey}
+                      className="py-2 border-b border-[#5A4638]/30 last:border-0"
                     >
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <p className="text-[#F4EDE3] text-sm font-medium truncate">
-                          {entry.transactionTitle}
-                        </p>
-                        <p className="text-[#9B8778] text-xs">
-                          {entry.date}
-                          {entry.category ? ` • ${entry.category}` : ''}
-                          {methodLabel ? ` • ${methodLabel}` : ''}
-                        </p>
-                        <p className="text-[#B8A99A] text-[11px] space-x-2">
-                          <span>Paid <span className="text-[#F4EDE3]">${paidAmount.toFixed(2)}</span></span>
-                          <span className="text-[#5A4638]">•</span>
-                          <span>My share <span className="text-[#93B889]">${myShare.toFixed(2)}</span></span>
-                          <span className="text-[#5A4638]">•</span>
-                          <span>{group.personName} owes <span className="text-[#D8755D]">${owes.toFixed(2)}</span></span>
-                        </p>
-                        {items.length > 0 && (
-                          <div className="space-y-0.5 mt-1">
-                            {items.map((item, idx) => (
-                              <p key={idx} className="text-[#9B8778] text-[10px] pl-1">
-                                {item.name} — <span className="text-[#B8A99A]">${item.price.toFixed(2)}</span>
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
-                        <p className="text-[#F4EDE3] text-sm font-bold tracking-tight">
-                          ${owes.toFixed(2)}
-                        </p>
-                        <button
-                          onClick={() =>
-                            toggleSettlement(
-                              entry.transactionId,
-                              entry.participantId,
-                              entry.status
-                            )
-                          }
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
-                            entry.status === 'settled'
-                              ? 'bg-[#93B889] text-white'
-                              : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'
-                          }`}
-                        >
-                          {entry.status === 'settled' ? 'Settled' : 'Pending'}
-                        </button>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <p className="text-[#F4EDE3] text-sm font-medium truncate">
+                            {entry.transactionTitle}
+                          </p>
+                          <p className="text-[#9B8778] text-xs">
+                            {entry.date}
+                            {entry.category ? ` • ${entry.category}` : ''}
+                            {methodLabel ? ` • ${methodLabel}` : ''}
+                          </p>
+                          <p className="text-[#B8A99A] text-[11px] space-x-2">
+                            <span>Paid <span className="text-[#F4EDE3]">${paidAmount.toFixed(2)}</span></span>
+                            <span className="text-[#5A4638]">•</span>
+                            <span>My share <span className="text-[#93B889]">${myShare.toFixed(2)}</span></span>
+                            <span className="text-[#5A4638]">•</span>
+                            <span>{group.personName} owes <span className="text-[#D8755D]">${owes.toFixed(2)}</span></span>
+                          </p>
+                          {isReceipt && itemCount > 0 && (
+                            <button
+                              onClick={() => toggleExpand(entryKey)}
+                              className="flex items-center gap-1 mt-1 text-[#9B8778] hover:text-[#B8A99A] text-[11px] transition-colors"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown size={12} />
+                              ) : (
+                                <ChevronRight size={12} />
+                              )}
+                              <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                              {categorySummary && (
+                                <span>• {categorySummary}</span>
+                              )}
+                              <span>• {isExpanded ? 'Hide' : 'View'} items</span>
+                            </button>
+                          )}
+                          {isExpanded && displayItems.length > 0 && (
+                            <div className="mt-2 space-y-0.5 pl-3 border-l border-[#5A4638]/40">
+                              {displayItems.map((item, idx) => (
+                                <p key={idx} className="text-[#9B8778] text-[10px] leading-relaxed">
+                                  {item.name}
+                                  <span className="text-[#B8A99A] ml-1">${item.price.toFixed(2)}</span>
+                                  {item.category && categorySummary !== item.category && (
+                                    <span className="text-[#5A4638] ml-1">({item.category})</span>
+                                  )}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                          <p className="text-[#F4EDE3] text-sm font-bold tracking-tight">
+                            ${owes.toFixed(2)}
+                          </p>
+                          <button
+                            onClick={() =>
+                              toggleSettlement(
+                                entry.transactionId,
+                                entry.participantId,
+                                entry.status
+                              )
+                            }
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
+                              entry.status === 'settled'
+                                ? 'bg-[#93B889] text-white'
+                                : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'
+                            }`}
+                          >
+                            {entry.status === 'settled' ? 'Settled' : 'Pending'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )

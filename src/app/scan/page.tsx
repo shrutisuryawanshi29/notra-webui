@@ -26,7 +26,7 @@ function formatPrice(cents: number): string {
 }
 
 function todayString(): string {
-  return new Date().toISOString().split('T')[0]
+  return new Date().toLocaleDateString('en-CA')
 }
 
 function extractTitle(page: Record<string, unknown>): string {

@@ -16,6 +16,7 @@ import {
 } from '@/lib/split-calc'
 import { buildNotionProperties, buildSplitDetailsJson } from '@/lib/notion-payload'
 import { getSplitPeople, addSplitPerson, hydrateFromTransactions, clearSplitPeople } from '@/lib/split-people'
+import { buildMerchantMap, getCategorySuggestions } from '@/lib/category-suggestions'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 
@@ -50,7 +51,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
     }
     return String(existing.amount)
   })
-  const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(existing?.date || new Date().toLocaleDateString('en-CA'))
   const [category, setCategory] = useState(existing?.category || '')
 
   const [categoryOptions, setCategoryOptions] = useState<FieldOption[]>([])
@@ -66,6 +67,9 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
 
   const categoryLoadRef = useRef(0)
   const monthClassificationLoadRef = useRef(0)
+  const [suggestions, setSuggestions] = useState<FieldOption[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [isSplit, setIsSplit] = useState(!!existing?.splitMetadata?.split.enabled)
   const [people, setPeople] = useState<SplitPerson[]>(() => {
@@ -558,8 +562,15 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
   useEffect(() => {
     loadCategoryOptions(role)
     loadMonthClassificationOptions(role)
+    setShowSuggestions(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role])
+
+  useEffect(() => {
+    return () => {
+      if (suggestionTimerRef.current) clearTimeout(suggestionTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (monthClassificationOptions.length > 0) {
@@ -574,7 +585,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
   const resetForm = () => {
     setTitle('')
     setAmount('')
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date().toLocaleDateString('en-CA')
     setDate(today)
     setCategory('')
     setCategoryOption(null)
@@ -594,6 +605,8 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
     setCustomAmount('')
     setHhsMode('iPayExtra')
     setExtraAmount('')
+    setShowSuggestions(false)
+    if (suggestionTimerRef.current) clearTimeout(suggestionTimerRef.current)
     setShowSuccess(true)
     setTimeout(() => setShowSuccess(false), 3000)
   }
@@ -749,10 +762,50 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
           <input
             type="text"
             value={title}
-            onChange={e => setTitle(e.target.value)}
+            onChange={e => {
+              const val = e.target.value
+              setTitle(val)
+              if (suggestionTimerRef.current) clearTimeout(suggestionTimerRef.current)
+              suggestionTimerRef.current = setTimeout(() => {
+                if (role === 'expense' && val.length >= 3 && !categoryOption?.name) {
+                  const mapping = getExpenseMapping(loadConfig()!)
+                  const colName = mapping?.columnMapping?.categoryColumn
+                  const merchantMap = buildMerchantMap(
+                    state.expenses,
+                    colName,
+                    state.expenseRelationCategoryLookup
+                  )
+                  const results = getCategorySuggestions(val, merchantMap)
+                  setSuggestions(results.map(r => ({ name: r.name })))
+                  setShowSuggestions(results.length > 0)
+                } else {
+                  setShowSuggestions(false)
+                }
+              }, 400)
+            }}
             placeholder={role === 'expense' ? 'Lunch at Cafe' : 'Freelance Payment'}
             className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"
           />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {suggestions.map(s => (
+                <button
+                  key={s.name}
+                  type="button"
+                  onClick={() => {
+                    const matched = categoryOptions.find(o => o.name === s.name) || s
+                    setCategoryOption(matched)
+                    setCategory(s.name)
+                    setShowSuggestions(false)
+                    if (suggestionTimerRef.current) clearTimeout(suggestionTimerRef.current)
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-full bg-[#D49A4A]/15 text-[#D49A4A] border border-[#D49A4A]/30 hover:bg-[#D49A4A]/25 transition-colors"
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
@@ -811,6 +864,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                 const selected = categoryOptions.find(o => o.name === e.target.value) || null
                 setCategoryOption(selected)
                 setCategory(selected?.name || e.target.value)
+                setShowSuggestions(false)
               }}
               className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
             >
@@ -826,6 +880,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
               onChange={e => {
                 setCategoryOption({ name: e.target.value })
                 setCategory(e.target.value)
+                setShowSuggestions(false)
               }}
               placeholder="e.g. Food, Transport"
               className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A] placeholder-[#9B8778]"

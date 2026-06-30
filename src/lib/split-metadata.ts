@@ -87,7 +87,7 @@ export function extractSplitTrackerEntries(
 
     if (!participants || participants.length === 0) {
       const splitWith = t.splitMetadata.split.splitWith
-      if (splitWith) {
+      if (splitWith && t.splitMetadata.split.theyOwe > 0.005) {
         entries.push({
           transactionId: t.id,
           transactionTitle: t.title,
@@ -105,6 +105,7 @@ export function extractSplitTrackerEntries(
     }
 
     for (const p of participants) {
+      if (p.owes <= 0.005) continue // skip $0 owed entries
       entries.push({
         transactionId: t.id,
         transactionTitle: t.title,
