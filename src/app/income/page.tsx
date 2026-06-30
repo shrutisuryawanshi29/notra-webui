@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { isSetupComplete } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
@@ -12,6 +12,8 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import FilterBar from '@/components/FilterBar'
 import FilterSheet from '@/components/FilterSheet'
 import { RefreshCw, Plus } from 'lucide-react'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import Toast from '@/components/Toast'
 
 function IncomePageContent() {
   const router = useRouter()
@@ -75,23 +77,31 @@ function IncomePageContent() {
     [state.incomeRelationCategoryLookup, state.incomeMonthClassificationLookup],
   )
 
+  const [deleteTarget, setDeleteTarget] = useState<NormalizedTransaction | null>(null)
+  const [errorToast, setErrorToast] = useState('')
+
   const handleEdit = (t: NormalizedTransaction) => {
     router.push(`/edit/${t.id}`)
   }
 
   const handleDelete = async (t: NormalizedTransaction) => {
-    if (!confirm(`Delete "${t.title}"?`)) return
+    setDeleteTarget(t)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
     const config = (await import('@/lib/config')).loadConfig()
     if (!config) return
+    setDeleteTarget(null)
     try {
-      await fetch(`/api/notion/pages/${t.id}`, {
+      await fetch(`/api/notion/pages/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: config.notionToken }),
       })
       loadData()
     } catch {
-      alert('Failed to delete')
+      setErrorToast('Failed to delete')
     }
   }
 
@@ -141,6 +151,16 @@ function IncomePageContent() {
         onRemoveColumnFilter={removeActiveFilter}
         onClearDateRange={clearDateRange}
       />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete income"
+        message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.` : ''}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <Toast open={!!errorToast} message={errorToast} onClose={() => setErrorToast('')} />
 
       <TransactionList
         transactions={result.filtered}

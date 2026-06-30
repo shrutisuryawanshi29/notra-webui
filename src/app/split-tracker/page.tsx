@@ -10,6 +10,7 @@ import { buildUpdatedSplitDetails } from '@/lib/notion-payload'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import Toast from '@/components/Toast'
 import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 
 type FilterMode = 'all' | 'pending' | 'settled'
@@ -21,6 +22,7 @@ export default function SplitTrackerPage() {
   const { state, loadData } = useCache()
   const [filter, setFilter] = useState<FilterMode>('all')
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
+  const [errorToast, setErrorToast] = useState('')
 
   useEffect(() => {
     if (!isSetupComplete()) {
@@ -84,7 +86,7 @@ export default function SplitTrackerPage() {
         loadData()
       }
     } catch {
-      alert('Failed to update settlement')
+      setErrorToast('Failed to update settlement')
     }
   }
 
@@ -136,6 +138,8 @@ export default function SplitTrackerPage() {
           </p>
         </Card>
       </div>
+
+      <Toast open={!!errorToast} message={errorToast} onClose={() => setErrorToast('')} />
 
       {groups.length === 0 ? (
         <div className="text-center py-12">

@@ -13,12 +13,17 @@ import type { SplitMetadata, SplitItem, ReceiptScanMetadata } from '@/types/tran
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import StyledSelect from '@/components/StyledSelect'
 import { Upload, Camera, ArrowLeft, X, Plus, AlertTriangle } from 'lucide-react'
 
 type Phase = 'upload' | 'review'
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11)
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
 }
 
 function formatPrice(cents: number): string {
@@ -269,6 +274,10 @@ export default function ScanPage() {
         next.sharedWith = people.map(p => p.id)
       } else if (classification === 'person') {
         next.sharedWith = people.length > 0 ? [people[0].id] : []
+      } else if (classification === 'shared') {
+        if (next.sharedWith.length === 0 && people.length > 0) {
+          next.sharedWith = [people[0].id]
+        }
       } else {
         next.sharedWith = []
       }
@@ -336,6 +345,10 @@ export default function ScanPage() {
         next.sharedWith = people.map(p => p.id)
       } else if (classification === 'person') {
         next.sharedWith = people.length > 0 ? [people[0].id] : []
+      } else if (classification === 'shared') {
+        if (next.sharedWith.length === 0 && people.length > 0) {
+          next.sharedWith = [people[0].id]
+        }
       } else {
         next.sharedWith = []
       }
@@ -350,91 +363,118 @@ export default function ScanPage() {
   }, [bulkCategory])
 
   const splitTotals = useMemo(() => {
+    const keptItems = items.filter(i => i.classification !== 'ignore')
+    const itemsTotal = keptItems.reduce((s, i) => s + i.finalPrice, 0)
+
+    const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
+    const rawTax = result?.summary.tax ?? null
+
+    const totalToSplit = rawCharged != null
+      ? rawCharged
+      : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
+
+    const effectiveTotal = includeTax || rawTax == null
+      ? totalToSplit
+      : totalToSplit - rawTax
+
+    const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
+
     let personalTotal = 0
-    let sharedTotal = 0
-    let personTotal = 0
-    let everyoneTotal = 0
-
-    for (const item of items) {
-      switch (item.classification) {
-        case 'mine': personalTotal += item.finalPrice; break
-        case 'shared': sharedTotal += item.finalPrice; break
-        case 'person': personTotal += item.finalPrice; break
-        case 'everyone': everyoneTotal += item.finalPrice; break
-      }
-    }
-
-    let mySharedPortion = 0
+    let myShare = 0
     const personOwes: Record<string, number> = {}
     for (const person of people) {
       personOwes[person.id] = 0
     }
 
-    for (const item of items) {
-      if (item.classification === 'shared' && item.sharedWith.length > 0) {
-        const shareCount = item.sharedWith.length + 1
-        const perPerson = item.finalPrice / shareCount
-        mySharedPortion += perPerson
-        for (const pid of item.sharedWith) {
-          personOwes[pid] = (personOwes[pid] || 0) + perPerson
+    for (const item of keptItems) {
+      const scaledPrice = round2(item.finalPrice * scaleFactor)
+      switch (item.classification) {
+        case 'mine':
+          myShare += scaledPrice
+          personalTotal += scaledPrice
+          break
+        case 'shared': {
+          const sharedWith = item.sharedWith.length > 0
+            ? item.sharedWith
+            : people.map(p => p.id)
+          const count = 1 + sharedWith.length
+          const each = scaledPrice / count
+          myShare += each
+          for (const pid of sharedWith) {
+            personOwes[pid] = (personOwes[pid] || 0) + each
+          }
+          break
         }
-      } else if (item.classification === 'everyone' && people.length > 0) {
-        const perPerson = item.finalPrice / (people.length + 1)
-        mySharedPortion += perPerson
-        for (const pid of people.map(p => p.id)) {
-          personOwes[pid] = (personOwes[pid] || 0) + perPerson
+        case 'person': {
+          const pid = item.sharedWith[0]
+          if (pid) personOwes[pid] = (personOwes[pid] || 0) + scaledPrice
+          break
         }
-      } else if (item.classification === 'person' && item.sharedWith[0]) {
-        const pid = item.sharedWith[0]
-        personOwes[pid] = (personOwes[pid] || 0) + item.finalPrice
+        case 'everyone': {
+          const allIds = people.map(p => p.id)
+          const count = 1 + allIds.length
+          const each = scaledPrice / count
+          myShare += each
+          for (const pid of allIds) {
+            personOwes[pid] = (personOwes[pid] || 0) + each
+          }
+          break
+        }
       }
     }
 
-    const myShare = personalTotal + mySharedPortion
-    const theyOwe = sharedTotal + personTotal + everyoneTotal - mySharedPortion
-
-    if (result?.summary.tax != null && includeTax) {
-      const taxableTotal = items.reduce((s, i) =>
-        i.classification !== 'ignore' ? s + i.finalPrice : s, 0
-      )
-      if (taxableTotal > 0) {
-        const taxRatio = result.summary.tax / taxableTotal
-        const myTax = myShare * taxRatio
-        return { personalTotal, sharedTotal, myShare: myShare + myTax, theyOwe: theyOwe + (result.summary.tax - myTax), taxAllocation: myTax, personOwes }
-      }
+    myShare = round2(myShare)
+    personalTotal = round2(personalTotal)
+    for (const pid of Object.keys(personOwes)) {
+      personOwes[pid] = round2(personOwes[pid])
     }
 
-    return { personalTotal, sharedTotal, myShare, theyOwe, personOwes }
+    const participantsSum = round2(Object.values(personOwes).reduce((s, v) => s + v, 0))
+    const totalAllocated = round2(myShare + participantsSum)
+    const remaining = round2(effectiveTotal - totalAllocated)
+    if (Math.abs(remaining) > 0.005) {
+      myShare = round2(myShare + remaining)
+    }
+
+    const theyOwe = round2(effectiveTotal - myShare)
+
+    return { personalTotal, myShare, theyOwe, personOwes }
   }, [items, people, includeTax, result])
 
   const groupPreviews = useMemo(() => {
-    const nonIgnore = items.filter(i => i.classification !== 'ignore')
-    const taxableTotal = nonIgnore.reduce((s, i) => s + i.finalPrice, 0)
-    const totalTax = (result?.summary.tax != null && includeTax) ? result.summary.tax : 0
-    const taxRatio = taxableTotal > 0 ? totalTax / taxableTotal : 0
+    const keptItems = items.filter(i => i.classification !== 'ignore')
+    const itemsTotal = keptItems.reduce((s, i) => s + i.finalPrice, 0)
 
-    const groups = new Map<string, { items: GeminiReceiptItem[]; subtotal: number; tax: number }>()
-    for (const item of nonIgnore) {
+    const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
+    const rawTax = result?.summary.tax ?? null
+    const totalToSplit = rawCharged != null
+      ? rawCharged
+      : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
+    const effectiveTotal = includeTax || rawTax == null
+      ? totalToSplit
+      : totalToSplit - rawTax
+    const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
+
+    const groups = new Map<string, GeminiReceiptItem[]>()
+    for (const item of keptItems) {
       const cat = item.category || 'Uncategorized'
-      if (!groups.has(cat)) groups.set(cat, { items: [], subtotal: 0, tax: 0 })
-      const g = groups.get(cat)!
-      g.items.push(item)
-      g.subtotal += item.finalPrice
-      g.tax += item.finalPrice * taxRatio
+      if (!groups.has(cat)) groups.set(cat, [])
+      groups.get(cat)!.push(item)
     }
 
     const previews: { category: string; itemCount: number; paidAmount: number; myShare: number }[] = []
-    for (const [cat, g] of groups) {
-      const paidAmount = g.subtotal + g.tax
-      const effectiveItems: SplitItem[] = g.items.map(item => ({
+    for (const [cat, groupItems] of groups) {
+      const groupRawTotal = groupItems.reduce((s, i) => s + i.finalPrice, 0)
+      const groupPaidAmount = round2(groupRawTotal * scaleFactor)
+      const effectiveItems: SplitItem[] = groupItems.map(item => ({
         name: item.name,
-        price: item.finalPrice * (1 + taxRatio),
+        price: round2(item.finalPrice * scaleFactor),
         assignment: item.classification as SplitItem['assignment'],
         sharedWith: item.sharedWith,
         category: item.category,
       }))
-      const result_ = calculateReceiptSplit(effectiveItems, paidAmount, people)
-      previews.push({ category: cat, itemCount: g.items.length, paidAmount, myShare: result_.myShare })
+      const result_ = calculateReceiptSplit(effectiveItems, groupPaidAmount, people)
+      previews.push({ category: cat, itemCount: groupItems.length, paidAmount: groupPaidAmount, myShare: result_.myShare })
     }
     return previews
   }, [items, people, includeTax, result])
@@ -479,9 +519,16 @@ export default function ScanPage() {
         throw new Error(`Set a category for each item before saving. Missing: "${uncategorized[0].name}"`)
       }
 
-      const taxableTotal = nonIgnoreItems.reduce((sum, i) => sum + i.finalPrice, 0)
-      const totalTax = (result?.summary.tax != null && includeTax) ? result.summary.tax : 0
-      const taxRatio = taxableTotal > 0 ? totalTax / taxableTotal : 0
+      const itemsTotal = nonIgnoreItems.reduce((sum, i) => sum + i.finalPrice, 0)
+      const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
+      const rawTax = result?.summary.tax ?? null
+      const totalToSplit = rawCharged != null
+        ? rawCharged
+        : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
+      const effectiveTotal = includeTax || rawTax == null
+        ? totalToSplit
+        : totalToSplit - rawTax
+      const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
 
       const categoryGroups = new Map<string, GeminiReceiptItem[]>()
       for (const item of nonIgnoreItems) {
@@ -497,6 +544,19 @@ export default function ScanPage() {
         const catOption = categoryOptions.find(o => o.name === catName)
         const catId = categoryType === 'relation' ? catOption?.id : undefined
 
+        const groupItemPrice = groupItems.reduce((s, i) => s + i.finalPrice, 0)
+        const groupPaidAmount = round2(groupItemPrice * scaleFactor)
+        const groupTax = rawTax != null ? round2(groupItemPrice * (rawTax / itemsTotal)) : 0
+
+        const effectiveItems: SplitItem[] = groupItems.map(item => ({
+          name: item.name,
+          price: round2(item.finalPrice * scaleFactor),
+          assignment: item.classification,
+          sharedWith: item.sharedWith,
+          category: item.category,
+          categoryId: catId,
+        }))
+
         const splitItems: SplitItem[] = groupItems.map(item => ({
           name: item.name,
           price: item.finalPrice,
@@ -504,15 +564,6 @@ export default function ScanPage() {
           sharedWith: item.sharedWith,
           category: item.category,
           categoryId: catId,
-        }))
-
-        const groupItemPrice = groupItems.reduce((s, i) => s + i.finalPrice, 0)
-        const groupTax = groupItemPrice * taxRatio
-        const groupPaidAmount = groupItemPrice + groupTax
-
-        const effectiveItems: SplitItem[] = splitItems.map(item => ({
-          ...item,
-          price: item.price * (1 + taxRatio),
         }))
 
         const groupResult = calculateReceiptSplit(effectiveItems, groupPaidAmount, people)
@@ -703,11 +754,12 @@ export default function ScanPage() {
   const sharedCount = items.filter(i => i.classification === 'shared').length
   const ignoreCount = items.filter(i => i.classification === 'ignore').length
   const summaryData = result?.summary
+  const adjustments = result?.adjustments ?? []
   const showSummary = !!(summaryData && (summaryData.itemsSubtotal != null ||
     summaryData.tax != null || summaryData.serviceFee != null ||
     summaryData.deliveryFee != null || summaryData.tip != null ||
     summaryData.discount != null || summaryData.total != null ||
-    summaryData.totalCharged != null))
+    summaryData.totalCharged != null)) || adjustments.length > 0
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#1B120E] p-4 md:p-6">
@@ -833,44 +885,38 @@ export default function ScanPage() {
               <button onClick={() => applyOwnershipToSelected('ignore')} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#5A4638]/20 text-[#9B8778] hover:bg-[#5A4638]/40 transition-colors">Ignore</button>
               <div className="w-px h-4 bg-[#5A4638]" />
               {categoryOptions.length > 0 && (
-                <select
-                  onChange={e => { if (e.target.value) applyCategoryToSelected(e.target.value) }}
-                  className="bg-[#1B120E] text-[#F4EDE3] text-[10px] rounded px-1.5 py-0.5 border border-[#5A4638] focus:outline-none focus:border-[#D49A4A]"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Set category</option>
-                  {categoryOptions.map(opt => (
-                    <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
-                  ))}
-                </select>
+                <StyledSelect
+                  value=""
+                  onChange={val => { if (val) applyCategoryToSelected(val) }}
+                  options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
+                  placeholder="Set category"
+                  size="sm"
+                  triggerClassName="bg-[#1B120E]"
+                />
               )}
               {people.length > 0 && (
-                <select
-                  onChange={e => { if (e.target.value) assignPersonToSelected(e.target.value) }}
-                  className="bg-[#1B120E] text-[#F4EDE3] text-[10px] rounded px-1.5 py-0.5 border border-[#5A4638] focus:outline-none focus:border-[#D49A4A]"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Assign person</option>
-                  {people.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                <StyledSelect
+                  value=""
+                  onChange={val => { if (val) assignPersonToSelected(val) }}
+                  options={people.map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="Assign person"
+                  size="sm"
+                  triggerClassName="bg-[#1B120E]"
+                />
               )}
             </div>
           )}
 
           {categoryOptions.length > 0 && (
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[#3A2A22]">
-              <select
+              <StyledSelect
                 value={bulkCategory}
-                onChange={e => setBulkCategory(e.target.value)}
-                className="bg-[#2A1F18] text-[#F4EDE3] text-xs rounded px-2 py-1.5 border border-[#5A4638] focus:outline-none focus:border-[#D49A4A]"
-              >
-                <option value="">Set category for all...</option>
-                {categoryOptions.map(opt => (
-                  <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
-                ))}
-              </select>
+                onChange={setBulkCategory}
+                options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
+                placeholder="Set category for all..."
+                size="sm"
+                triggerClassName="bg-[#2A1F18] text-xs"
+              />
               <button
                 onClick={bulkSetCategory}
                 disabled={!bulkCategory}
@@ -1005,16 +1051,14 @@ export default function ScanPage() {
                                 {categoryOptionsLoading ? (
                                   <span className="text-[#6A5140] text-[10px]">...</span>
                                 ) : categoryOptions.length > 0 ? (
-                                  <select
+                                  <StyledSelect
                                     value={item.category || ''}
-                                    onChange={e => updateItem(item.id, { category: e.target.value || null })}
-                                    className="bg-[#2A1F18] text-[#F4EDE3] text-[10px] rounded px-1 py-0.5 border border-[#5A4638] focus:outline-none focus:border-[#D49A4A] max-w-[100px]"
-                                  >
-                                    <option value="">--</option>
-                                    {categoryOptions.map(opt => (
-                                      <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
-                                    ))}
-                                  </select>
+                                    onChange={val => updateItem(item.id, { category: val || null })}
+                                    options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
+                                    placeholder="--"
+                                    size="sm"
+                                    triggerClassName="bg-[#2A1F18] max-w-[100px]"
+                                  />
                                 ) : (
                                   <input
                                     type="text"
@@ -1061,7 +1105,7 @@ export default function ScanPage() {
           })()}
         </Card>
 
-        {showSummary && <Card>
+        {result && showSummary && <Card>
             <h2 className="text-sm font-semibold text-[#F4EDE3] mb-2">Summary</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               {result.summary.itemsSubtotal != null && (
@@ -1107,6 +1151,19 @@ export default function ScanPage() {
                 </div>
               )}
             </div>
+            {adjustments.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-[#5A4638]/50">
+                <p className="text-[#D8755D] text-xs font-medium mb-1.5">Adjustments & Refunds</p>
+                <div className="space-y-1">
+                  {adjustments.map((adj, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-[#9B8778]">{adj.name}</span>
+                      <span className="text-[#D8755D]">-{formatPrice(Math.abs(adj.amount ?? 0))}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         }
 

@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { loadConfig, clearConfig, isSetupComplete, NotraConfig, getExpenseConfig, getIncomeConfig, saveGeminiKey } from '@/lib/config'
 import { GEMINI_AVAILABLE_MODELS, GEMINI_DEFAULT_MODEL, getStoredGeminiModel, saveStoredGeminiModel } from '@/lib/gemini-config'
 import Card from '@/components/Card'
+import StyledSelect from '@/components/StyledSelect'
 import { LogOut, Check, X, Loader } from 'lucide-react'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -17,6 +19,7 @@ export default function SettingsPage() {
   const [testingKey, setTestingKey] = useState(false)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [geminiModel, setGeminiModel] = useState(GEMINI_DEFAULT_MODEL)
+  const [confirmReset, setConfirmReset] = useState(false)
   const hasKey = !!(config?.geminiKey)
 
   useEffect(() => {
@@ -36,10 +39,12 @@ export default function SettingsPage() {
   const incomeCfg = config ? getIncomeConfig(config) : null
 
   const handleReset = () => {
-    if (confirm('This will clear all configuration. Are you sure?')) {
-      clearConfig()
-      router.push('/setup')
-    }
+    setConfirmReset(true)
+  }
+
+  const confirmResetAction = () => {
+    clearConfig()
+    router.push('/setup')
   }
 
   const maskedKey = useCallback(() => {
@@ -224,15 +229,11 @@ export default function SettingsPage() {
 
           <div>
             <label className="text-[#B8A99A] text-xs block mb-1">Model</label>
-            <select
+            <StyledSelect
               value={geminiModel}
-              onChange={e => setGeminiModel(e.target.value)}
-              className="w-full bg-[#1B120E] text-[#F4EDE3] border border-[#5A4638] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D49A4A]"
-            >
-              {GEMINI_AVAILABLE_MODELS.map(m => (
-                <option key={m.modelID} value={m.modelID}>{m.displayName}</option>
-              ))}
-            </select>
+              onChange={setGeminiModel}
+              options={GEMINI_AVAILABLE_MODELS.map(m => ({ value: m.modelID, label: m.displayName }))}
+            />
           </div>
 
           <p className="text-[#6A5140] text-xs">
@@ -324,6 +325,16 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={confirmReset}
+        title="Reset configuration"
+        message="This will clear all configuration. Are you sure?"
+        confirmLabel="Reset"
+        destructive
+        onConfirm={confirmResetAction}
+        onCancel={() => setConfirmReset(false)}
+      />
 
       <button
         onClick={handleReset}

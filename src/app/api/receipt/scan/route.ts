@@ -6,13 +6,32 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11)
 }
 
+const REFUND_PATTERNS = /^(refund|return|cancel|cancelled|void|credit|not charged|adjusted)/i
+
+function isRefundItem(name: string, rawText: string | null, finalPrice: number): boolean {
+  if (REFUND_PATTERNS.test(name)) return true
+  if (rawText && REFUND_PATTERNS.test(rawText)) return true
+  if (finalPrice <= 0) return true
+  return false
+}
+
 function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string): GeminiReceiptResult {
   const warnings: string[] = response.warnings ?? []
+  const extraAdjustments: GeminiReceiptAdjustment[] = []
 
   const items: GeminiReceiptItem[] = []
   for (const rawItem of response.items ?? []) {
-    if (rawItem.name.trim().length === 0 || rawItem.finalPrice < 0) continue
     const name = rawItem.name.trim()
+    if (name.length === 0) continue
+    if (isRefundItem(name, rawItem.rawText ?? null, rawItem.finalPrice)) {
+      extraAdjustments.push({
+        name,
+        type: 'refund',
+        amount: Math.abs(rawItem.finalPrice),
+        description: rawItem.rawText ?? null,
+      })
+      continue
+    }
     items.push({
       id: generateId(),
       name,
@@ -50,9 +69,13 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
 
   const itemSum = items.reduce((sum, item) => sum + item.finalPrice, 0)
   if (response.summary?.itemsSubtotal != null && Math.abs(itemSum - response.summary.itemsSubtotal) > 0.1) {
-    const msg = `Item total ($${itemSum.toFixed(2)}) differs from receipt subtotal ($${response.summary.itemsSubtotal.toFixed(2)}). Please review.`
-    if (!warnings.some(w => w.includes('differs from receipt subtotal'))) {
-      warnings.push(msg)
+    const refundTotal = extraAdjustments.reduce((s, a) => s + (a.amount ?? 0), 0)
+    const adjustedExpected = response.summary.itemsSubtotal - refundTotal
+    if (Math.abs(itemSum - adjustedExpected) > 0.1) {
+      const msg = `Item total ($${itemSum.toFixed(2)}) differs from receipt subtotal ($${response.summary.itemsSubtotal.toFixed(2)}). Please review.`
+      if (!warnings.some(w => w.includes('differs from receipt subtotal'))) {
+        warnings.push(msg)
+      }
     }
   }
 
@@ -72,14 +95,17 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
     totalCharged: s?.totalCharged ?? null,
   }
 
-  const adjustments: GeminiReceiptAdjustment[] = (response.adjustments ?? [])
-    .filter(adj => !(adj.type === 'weightAdjustment' && adj.amount && adj.amount > 0))
-    .map(adj => ({
-      name: adj.name,
-      type: adj.type ?? 'unknown',
-      amount: adj.amount ?? null,
-      description: adj.description ?? null,
-    }))
+  const adjustments: GeminiReceiptAdjustment[] = [
+    ...extraAdjustments,
+    ...(response.adjustments ?? [])
+      .filter(adj => !(adj.type === 'weightAdjustment' && adj.amount && adj.amount > 0))
+      .map(adj => ({
+        name: adj.name,
+        type: adj.type ?? 'unknown',
+        amount: adj.amount ?? null,
+        description: adj.description ?? null,
+      })),
+  ]
 
   return {
     merchant: response.merchant ?? null,

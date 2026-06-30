@@ -17,6 +17,8 @@ import {
 import { buildNotionProperties, buildSplitDetailsJson } from '@/lib/notion-payload'
 import { getSplitPeople, addSplitPerson, hydrateFromTransactions, clearSplitPeople } from '@/lib/split-people'
 import { buildMerchantMap, getCategorySuggestions } from '@/lib/category-suggestions'
+import StyledSelect from '@/components/StyledSelect'
+import Toast from '@/components/Toast'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 
@@ -176,6 +178,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
 
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [errorToast, setErrorToast] = useState('')
 
   const paidAmount = parseFloat(amount) || 0
 
@@ -691,7 +694,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
         resetForm()
       }
     } catch (e) {
-      alert('Failed to save transaction')
+      setErrorToast('Failed to save transaction')
     } finally {
       setSaving(false)
     }
@@ -712,7 +715,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
       await loadData()
       router.push(existing.databaseRole === 'expense' ? '/expenses' : '/income')
     } catch {
-      alert('Failed to delete transaction')
+      setErrorToast('Failed to delete transaction')
     } finally {
       setSaving(false)
     }
@@ -728,6 +731,8 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
           Transaction saved successfully
         </div>
       )}
+      <Toast open={!!errorToast} message={errorToast} onClose={() => setErrorToast('')} />
+
       <Card className="p-6 space-y-5">
         {!isEdit && (
           <div>
@@ -858,21 +863,17 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
               </button>
             </div>
           ) : categoryOptions.length > 0 ? (
-            <select
+            <StyledSelect
               value={categoryOption?.name || ''}
-              onChange={(e) => {
-                const selected = categoryOptions.find(o => o.name === e.target.value) || null
+              onChange={(val) => {
+                const selected = categoryOptions.find(o => o.name === val) || null
                 setCategoryOption(selected)
-                setCategory(selected?.name || e.target.value)
+                setCategory(selected?.name || val)
                 setShowSuggestions(false)
               }}
-              className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
-            >
-              <option value="">Select a category</option>
-              {categoryOptions.map(opt => (
-                <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
-              ))}
-            </select>
+              options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
+              placeholder="Select a category"
+            />
           ) : (
             <input
               type="text"
@@ -908,19 +909,15 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
         ) : monthClassificationOptions.length > 0 ? (
           <div>
             <label className="text-[#B8A99A] text-xs font-medium block mb-1.5">Month Classification</label>
-            <select
+            <StyledSelect
               value={monthClassificationValue?.name || ''}
-              onChange={(e) => {
-                const selected = monthClassificationOptions.find(o => o.name === e.target.value) || null
+              onChange={(val) => {
+                const selected = monthClassificationOptions.find(o => o.name === val) || null
                 setMonthClassificationValue(selected)
               }}
-              className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2.5 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
-            >
-              <option value="">Select a month</option>
-              {monthClassificationOptions.map(opt => (
-                <option key={opt.id || opt.name} value={opt.name}>{opt.name}</option>
-              ))}
-            </select>
+              options={monthClassificationOptions.map(o => ({ value: o.name, label: o.name }))}
+              placeholder="Select a month"
+            />
           </div>
         ) : null}
 

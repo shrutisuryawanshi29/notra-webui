@@ -3,6 +3,7 @@
 import { X, Plus } from 'lucide-react'
 import { ColumnFilter, FilterDraft, FilterableColumn, FilterOperator, FilterOption } from '@/types/filters'
 import { operatorsForType } from '@/lib/filter-engine'
+import StyledSelect from '@/components/StyledSelect'
 
 interface FilterSheetProps {
   open: boolean
@@ -40,36 +41,29 @@ function FilterRow({
     <div className="bg-[#403027] border border-[#6B5847] rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-2">
         {/* Column picker */}
-        <select
+        <StyledSelect
           value={filter.columnName}
-          onChange={(e) => {
-            const col = filteredColumns.find((c) => c.name === e.target.value)
+          onChange={(val) => {
+            const col = filteredColumns.find((c) => c.name === val)
             const columnType = col?.type || 'rich_text'
             const ops2 = operatorsForType(columnType)
             onChange({
-              columnName: e.target.value,
+              columnName: val,
               columnType,
               operator: ops2[0]?.value || 'equals',
               value: '',
             })
           }}
-          className="flex-1 bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
-        >
-          {filteredColumns.map((col) => (
-            <option key={col.name} value={col.name}>{col.label}</option>
-          ))}
-        </select>
+          options={filteredColumns.map(col => ({ value: col.name, label: col.label }))}
+          className="flex-1"
+        />
 
         {/* Condition picker */}
-        <select
+        <StyledSelect
           value={filter.operator}
-          onChange={(e) => onChange({ operator: e.target.value as FilterOperator })}
-          className="bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
-        >
-          {ops.map((op) => (
-            <option key={op.value} value={op.value}>{op.label}</option>
-          ))}
-        </select>
+          onChange={(val) => onChange({ operator: val as FilterOperator })}
+          options={ops.map(op => ({ value: op.value, label: op.label }))}
+        />
 
         {/* Remove button */}
         <button
@@ -82,16 +76,12 @@ function FilterRow({
 
       {/* Value input */}
       {options && options.length > 0 ? (
-        <select
+        <StyledSelect
           value={filter.value}
-          onChange={(e) => onChange({ value: e.target.value })}
-          className="w-full bg-[#35281F] border border-[#6B5847] rounded px-2 py-1.5 text-sm text-[#F4EDE3] focus:outline-none focus:border-[#D49A4A]"
-        >
-          <option value="">Select {filter.columnName.toLowerCase()}...</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          onChange={(val) => onChange({ value: val })}
+          options={options.map(opt => ({ value: opt.value, label: opt.label }))}
+          placeholder={`Select ${filter.columnName.toLowerCase()}...`}
+        />
       ) : filter.columnType === 'number' ? (
         <input
           type="number"
