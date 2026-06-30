@@ -1,4 +1,4 @@
-import { SplitMetadata } from '@/types/transaction'
+import { SplitMetadata, SplitItem, ReceiptScanMetadata } from '@/types/transaction'
 import { NotraConfig, getExpenseConfig, getIncomeConfig } from './config'
 
 export interface NotionPageProperties {
@@ -89,9 +89,14 @@ export function buildNotionProperties(
 
   if (isExpense && metaCol) {
     if (data.splitMetadata && data.splitMetadata.split.enabled) {
-      properties[metaCol] = {
-        rich_text: [{ text: { content: JSON.stringify(data.splitMetadata) } }],
-      }
+      const json = JSON.stringify(data.splitMetadata)
+      const CHUNK_SIZE = 1900
+      const texts: { text: { content: string } }[] = json.length <= CHUNK_SIZE
+        ? [{ text: { content: json } }]
+        : Array.from({ length: Math.ceil(json.length / CHUNK_SIZE) }, (_, i) => ({
+            text: { content: json.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE) },
+          }))
+      properties[metaCol] = { rich_text: texts }
     } else {
       properties[metaCol] = {
         rich_text: [],
@@ -108,9 +113,11 @@ export function buildSplitDetailsJson(
   theyOwe: number,
   type: string,
   participants: Array<{ id: string; name: string; owes: number }>,
-  inputs: Record<string, unknown>
+  inputs: Record<string, unknown>,
+  receipt?: ReceiptScanMetadata,
+  items?: SplitItem[]
 ): SplitMetadata {
-  return {
+  const result: SplitMetadata = {
     version: 2,
     split: {
       enabled: true,
@@ -129,6 +136,9 @@ export function buildSplitDetailsJson(
       inputs,
     },
   }
+  if (receipt) result.receipt = receipt
+  if (items) result.split.items = items
+  return result
 }
 
 export function buildUpdatedSplitDetails(

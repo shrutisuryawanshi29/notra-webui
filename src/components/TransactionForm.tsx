@@ -2,18 +2,20 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { NormalizedTransaction, SplitPerson } from '@/types/transaction'
+import { NormalizedTransaction, SplitPerson, SplitItem } from '@/types/transaction'
 import { loadConfig, getExpenseConfig, getIncomeConfig, getExpenseMapping, getIncomeMapping } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import { stablePersonId, safeExtractText } from '@/lib/notion-properties'
 import {
   calculateSplit,
+  calculateReceiptSplit,
   inferMethodFromType,
   legacyTypeToMethod,
   SplitMethodType,
   ManualSplitInput,
 } from '@/lib/split-calc'
 import { buildNotionProperties, buildSplitDetailsJson } from '@/lib/notion-payload'
+import { getSplitPeople, addSplitPerson, hydrateFromTransactions, clearSplitPeople } from '@/lib/split-people'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 
@@ -35,7 +37,7 @@ interface FieldOption {
 
 export default function TransactionForm({ existing, defaultRole }: TransactionFormProps) {
   const router = useRouter()
-  const { loadData } = useCache()
+  const { state, loadData } = useCache()
   const isEdit = !!existing
 
   const [role, setRole] = useState<'expense' | 'income'>(existing?.databaseRole || defaultRole || 'expense')
@@ -113,6 +115,61 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
     return inp && typeof inp.extraAmount === 'number' ? String(inp.extraAmount) : ''
   })
 
+  const [savedPeople, setSavedPeople] = useState<{ id: string; name: string }[]>([])
+  const [showClearPeople, setShowClearPeople] = useState(false)
+
+  const [editableItems, setEditableItems] = useState<SplitItem[]>(() => {
+    if (existing?.splitMetadata?.split.type === 'receiptMultiPerson' && existing.splitMetadata.split.items) {
+      return existing.splitMetadata.split.items.map(item => ({ ...item }))
+    }
+    return []
+  })
+
+  const updateItemAssignment = useCallback((index: number, assignment: SplitItem['assignment']) => {
+    setEditableItems(prev => prev.map((item, i) =>
+      i === index ? { ...item, assignment, sharedWith: assignment === 'shared' ? item.sharedWith : [] } : item
+    ))
+  }, [])
+
+  const toggleItemSharedWith = useCallback((index: number, personId: string) => {
+    setEditableItems(prev => prev.map((item, i) => {
+      if (i !== index) return item
+      const has = item.sharedWith.includes(personId)
+      return { ...item, sharedWith: has ? item.sharedWith.filter(id => id !== personId) : [...item.sharedWith, personId] }
+    }))
+  }, [])
+
+  const updateItemName = useCallback((index: number, name: string) => {
+    setEditableItems(prev => prev.map((item, i) =>
+      i === index ? { ...item, name } : item
+    ))
+  }, [])
+
+  const updateItemPrice = useCallback((index: number, price: number) => {
+    setEditableItems(prev => prev.map((item, i) =>
+      i === index ? { ...item, price } : item
+    ))
+  }, [])
+
+  const assignItemToPerson = useCallback((index: number, personId: string) => {
+    setEditableItems(prev => prev.map((item, i) =>
+      i === index ? { ...item, assignment: 'person', sharedWith: [personId] } : item
+    ))
+  }, [])
+
+  const assignToAllPeople = useCallback((index: number) => {
+    setEditableItems(prev => prev.map((item, i) =>
+      i === index ? { ...item, sharedWith: people.map(p => p.id) } : item
+    ))
+  }, [people])
+
+  useEffect(() => {
+    if (!state.loading || state.expenses.length > 0) {
+      hydrateFromTransactions(state.expenses)
+      setSavedPeople(getSplitPeople())
+    }
+  }, [state.expenses.length])
+
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -152,6 +209,33 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
     }
     return calculateSplit(splitMethod, splitInput, splitExtra as Record<string, unknown>)
   }, [isSplit, splitMethod, splitInput, splitExtra, people.length, paidAmount])
+
+  const isReceiptSplit = useMemo(() => {
+    if (!existing?.splitMetadata) return false
+    return existing.splitMetadata.split.type === 'receiptMultiPerson'
+  }, [existing])
+
+  const receiptSplitResult = useMemo<SplitCalcState>(() => {
+    if (!isReceiptSplit || !isSplit || editableItems.length === 0 || people.length === 0 || paidAmount <= 0) {
+      return { myShare: 0, theyOwe: 0, participants: [] }
+    }
+    return calculateReceiptSplit(editableItems, paidAmount, people)
+  }, [isReceiptSplit, isSplit, editableItems, paidAmount, people])
+
+  const effectiveSplitResult = isReceiptSplit && editableItems.length > 0 ? receiptSplitResult : splitResult
+
+  const extraAmt = parseFloat(extraAmount) || 0
+  const hhsError = isSplit && splitMethod === 'hhs' && people.length > 0
+    ? extraAmt <= 0
+      ? 'Extra amount must be greater than 0'
+      : extraAmt >= paidAmount
+        ? 'Extra amount must be less than the paid amount'
+        : (hhsMode === 'iPayExtra' && (paidAmount - extraAmt) / (1 + people.length) <= 0)
+          ? 'Extra amount too high — would make others owe negative'
+          : (hhsMode === 'extraTheyPay' && (paidAmount - extraAmt * people.length) / (1 + people.length) <= 0)
+            ? 'Extra amount too high — would make my share negative'
+            : null
+    : null
 
   const notionAmount = isSplit ? splitResult.myShare : paidAmount
 
@@ -451,14 +535,24 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
   const addPerson = useCallback(() => {
     const name = newPersonName.trim()
     if (!name) return
-    const id = stablePersonId(name)
-    if (people.some(p => p.id === id)) return
-    setPeople(prev => [...prev, { id, name }])
+    const stored = addSplitPerson(name)
+    if (!stored) return
+    if (people.some(p => p.id === stored.id)) return
+    setPeople(prev => [...prev, { id: stored.id, name: stored.name }])
     setNewPersonName('')
+    setSavedPeople(getSplitPeople())
   }, [newPersonName, people])
 
   const removePerson = useCallback((id: string) => {
     setPeople(prev => prev.filter(p => p.id !== id))
+  }, [])
+
+  const togglePerson = useCallback((id: string, name: string) => {
+    setPeople(prev =>
+      prev.some(p => p.id === id)
+        ? prev.filter(p => p.id !== id)
+        : [...prev, { id, name }]
+    )
   }, [])
 
   useEffect(() => {
@@ -518,13 +612,15 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
       if (isSplit && people.length > 0) {
         splitMetadata = buildSplitDetailsJson(
           paidAmount,
-          splitResult.myShare,
-          splitResult.theyOwe,
-          legacyTypeToMethod(splitMethod),
-          splitResult.participants,
-          splitExtra as Record<string, unknown>
+          effectiveSplitResult.myShare,
+          effectiveSplitResult.theyOwe,
+          isReceiptSplit ? 'receiptMultiPerson' : legacyTypeToMethod(splitMethod),
+          effectiveSplitResult.participants,
+          splitExtra as Record<string, unknown>,
+          isReceiptSplit ? (existing?.splitMetadata?.receipt ?? undefined) : undefined,
+          editableItems.length > 0 ? editableItems : undefined
         )
-        finalAmount = splitResult.myShare
+        finalAmount = effectiveSplitResult.myShare
       }
 
       const mapping = role === 'expense' ? getExpenseMapping(config) : getIncomeMapping(config)
@@ -674,9 +770,9 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
           />
           {isSplit && people.length > 0 && paidAmount > 0 && (
             <div className="mt-2 space-y-1 text-xs tracking-tight">
-              <p className="text-[#93B889]">My share: ${splitResult.myShare.toFixed(2)}</p>
-              <p className="text-[#D8755D]">They owe: ${splitResult.theyOwe.toFixed(2)}</p>
-              {splitResult.participants.map(p => (
+              <p className="text-[#93B889]">My share: ${effectiveSplitResult.myShare.toFixed(2)}</p>
+              <p className="text-[#D8755D]">They owe: ${effectiveSplitResult.theyOwe.toFixed(2)}</p>
+              {effectiveSplitResult.participants.map(p => (
                 <p key={p.id} className="text-[#B8A99A] pl-3">
                   {p.name}: ${p.owes.toFixed(2)}
                 </p>
@@ -797,18 +893,46 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
               <div className="space-y-4 border-t border-[#6B5847] pt-4">
                 <div>
                   <label className="text-[#B8A99A] text-xs font-medium block mb-2">People</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {people.map(p => (
-                      <Chip
-                        key={p.id}
-                        selected
-                        onClick={() => removePerson(p.id)}
-                        variant="pending"
-                      >
-                        {p.name} ✕
-                      </Chip>
-                    ))}
-                  </div>
+
+                  {people.length > 0 && (
+                    <>
+                      <p className="text-[#9B8778] text-[10px] font-medium mb-1.5 uppercase tracking-wider">Selected</p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {people.map(p => (
+                          <Chip
+                            key={p.id}
+                            selected
+                            onClick={() => removePerson(p.id)}
+                            variant="pending"
+                          >
+                            {p.name} ✕
+                          </Chip>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {savedPeople.length > 0 && (
+                    <>
+                      <p className="text-[#9B8778] text-[10px] font-medium mb-1.5 uppercase tracking-wider">Saved People</p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {savedPeople.map(sp => {
+                          const isSelected = people.some(p => p.id === sp.id)
+                          return (
+                            <Chip
+                              key={sp.id}
+                              selected={isSelected}
+                              onClick={() => togglePerson(sp.id, sp.name)}
+                              variant={isSelected ? 'pending' : 'default'}
+                            >
+                              {sp.name}
+                            </Chip>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -826,8 +950,133 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                       Add
                     </button>
                   </div>
+
+                  {savedPeople.length > 0 && !showClearPeople && (
+                    <button
+                      onClick={() => setShowClearPeople(true)}
+                      className="text-[#9B8778] text-[10px] mt-2 hover:text-[#D8755D] transition-colors"
+                    >
+                      Clear saved people
+                    </button>
+                  )}
+                  {showClearPeople && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[#D8755D] text-[10px]">Remove all saved people?</span>
+                      <button
+                        onClick={() => { clearSplitPeople(); setSavedPeople([]); setShowClearPeople(false) }}
+                        className="text-[#D8755D] text-[10px] font-semibold underline"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setShowClearPeople(false)}
+                        className="text-[#9B8778] text-[10px] underline"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )}
                 </div>
 
+                {isReceiptSplit && editableItems.length === 0 && existing?.splitMetadata?.receipt && (
+                  <div className="bg-[#403027] border border-[#D49A4A]/50 rounded-lg p-3 text-xs text-[#D49A4A]">
+                    This receipt was scanned with an older format. Item-level editing is not available.
+                  </div>
+                )}
+
+                {editableItems.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[#B8A99A] text-xs font-medium">Receipt Items ({editableItems.length})</label>
+                      <span className="text-[#6A5140] text-[10px]">
+                        {editableItems.filter(i => i.assignment === 'mine').length} mine
+                        &nbsp;&middot;&nbsp;
+                        {editableItems.filter(i => i.assignment === 'person').length} by them
+                        &nbsp;&middot;&nbsp;
+                        {editableItems.filter(i => i.assignment === 'shared').length} shared
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                      {editableItems.map((item, i) => (
+                        <div key={i} className="bg-[#1B120E] rounded-lg px-3 py-2 border border-[#3A2A22]">
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={item.name}
+                              onChange={e => updateItemName(i, e.target.value)}
+                              className="flex-1 bg-transparent text-[#F4EDE3] text-sm px-1 py-0.5 border-b border-transparent focus:border-[#D49A4A] focus:outline-none min-w-0"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={item.price}
+                              onChange={e => updateItemPrice(i, parseFloat(e.target.value) || 0)}
+                              className="w-20 bg-transparent text-[#D49A4A] text-sm font-semibold text-right px-1 py-0.5 border-b border-transparent focus:border-[#D49A4A] focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <Chip
+                              selected={item.assignment === 'mine'}
+                              onClick={() => updateItemAssignment(i, 'mine')}
+                              variant={item.assignment === 'mine' ? 'settled' : 'default'}
+                            >Mine</Chip>
+                            <Chip
+                              selected={item.assignment === 'person'}
+                              onClick={() => updateItemAssignment(i, 'person')}
+                              variant={item.assignment === 'person' ? 'settled' : 'default'}
+                              className={item.assignment === 'person' ? '!bg-[#93B889] !text-white' : ''}
+                            >Person</Chip>
+                            <Chip
+                              selected={item.assignment === 'shared'}
+                              onClick={() => updateItemAssignment(i, 'shared')}
+                              variant={item.assignment === 'shared' ? 'pending' : 'default'}
+                            >Shared</Chip>
+                            <Chip
+                              selected={item.assignment === 'ignore'}
+                              onClick={() => updateItemAssignment(i, 'ignore')}
+                              variant="default"
+                              className={item.assignment === 'ignore' ? '!bg-[#5A4638] !text-[#9B8778]' : ''}
+                            >Ignore</Chip>
+
+                            {item.assignment === 'person' && people.length > 0 && (
+                              <span className="text-[#6A5140] text-[10px] ml-1">for:</span>
+                            )}
+                            {item.assignment === 'person' && people.map(p => (
+                              <Chip
+                                key={p.id}
+                                selected={item.sharedWith.includes(p.id)}
+                                onClick={() => assignItemToPerson(i, p.id)}
+                              >{p.name}</Chip>
+                            ))}
+
+                            {item.assignment === 'shared' && (
+                              <>
+                                {people.length > 0 && (
+                                  <span className="text-[#6A5140] text-[10px] ml-1">with:</span>
+                                )}
+                                {people.map(p => (
+                                  <Chip
+                                    key={p.id}
+                                    selected={item.sharedWith.includes(p.id)}
+                                    onClick={() => toggleItemSharedWith(i, p.id)}
+                                  >{p.name}</Chip>
+                                ))}
+                                {people.length > 0 && (
+                                  <button
+                                    onClick={() => assignToAllPeople(i)}
+                                    className="text-[#9B8778] text-[10px] hover:text-[#D49A4A] transition-colors ml-1"
+                                  >Everyone</button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(!isReceiptSplit || editableItems.length === 0) && (
                 <div>
                   <label className="text-[#B8A99A] text-xs font-medium block mb-2">Split Method</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -846,6 +1095,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                     ))}
                   </div>
                 </div>
+                )}
 
                 {splitMethod === 'percent' && (
                   <div>
@@ -919,6 +1169,9 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
                         onChange={e => setExtraAmount(e.target.value)}
                         className="w-full bg-[#403027] text-[#F4EDE3] rounded-lg px-3 py-2 text-sm border border-[#6B5847] focus:outline-none focus:border-[#D49A4A]"
                       />
+                      {hhsError && (
+                        <p className="text-[#D8755D] text-xs mt-1">{hhsError}</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -930,7 +1183,7 @@ export default function TransactionForm({ existing, defaultRole }: TransactionFo
         <div className="pt-2 space-y-3">
           <button
             onClick={handleSubmit}
-            disabled={saving || !amount || parseFloat(amount) <= 0 || (isSplit && people.length === 0)}
+            disabled={saving || !amount || parseFloat(amount) <= 0 || (isSplit && people.length === 0) || !!hhsError}
             className="w-full bg-[#D49A4A] text-white rounded-xl py-3 text-base font-semibold hover:bg-[#C1883A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Saving...' : isEdit ? 'Update' : `Add ${role === 'expense' ? 'Expense' : 'Income'}`}

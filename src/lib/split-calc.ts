@@ -1,4 +1,4 @@
-import { SplitPerson } from '@/types/transaction'
+import { SplitPerson, SplitItem } from '@/types/transaction'
 
 export interface ManualSplitInput {
   paidAmount: number
@@ -116,24 +116,29 @@ export interface HHSSplitExtra {
   extraAmount: number
 }
 
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}
+
 export function calculateHHSSplit(
   input: ManualSplitInput,
   extra: HHSSplitExtra
 ): ManualSplitResult {
   const count = input.selectedPeople.length
-  const baseShare = input.paidAmount / (1 + count)
+  const totalPeople = 1 + count
   let myShare: number
   let theyOwe: number
 
   if (extra.entryMode === 'iPayExtra') {
-    myShare = baseShare + extra.extraAmount
-    theyOwe = input.paidAmount - myShare
+    const otherShare = (input.paidAmount - extra.extraAmount) / totalPeople
+    myShare = round2(otherShare + extra.extraAmount)
+    theyOwe = round2(input.paidAmount - myShare)
   } else {
-    theyOwe = baseShare + extra.extraAmount
-    myShare = input.paidAmount - theyOwe
+    myShare = round2((input.paidAmount - extra.extraAmount * count) / totalPeople)
+    theyOwe = round2(input.paidAmount - myShare)
   }
 
-  const perPerson = count > 0 ? theyOwe / count : 0
+  const perPerson = count > 0 ? round2(theyOwe / count) : 0
 
   return {
     myShare,
@@ -146,7 +151,6 @@ export function calculateHHSSplit(
     inputs: {
       entryMode: extra.entryMode,
       extraAmount: extra.extraAmount,
-      baseShare,
     },
   }
 }
@@ -190,6 +194,61 @@ export function inferMethodFromType(type: string): SplitMethodType {
     default:
       return 'equal'
   }
+}
+
+export function calculateReceiptSplit(
+  items: SplitItem[],
+  paidAmount: number,
+  people: SplitPerson[]
+): ManualSplitResult {
+  let myShare = 0
+  const participantOwes: Record<string, number> = {}
+  for (const p of people) {
+    participantOwes[p.id] = 0
+  }
+
+  for (const item of items) {
+    switch (item.assignment) {
+      case 'mine':
+        myShare += item.price
+        break
+      case 'person': {
+        const personId = item.sharedWith[0]
+        if (personId && participantOwes[personId] !== undefined) {
+          participantOwes[personId] += item.price
+        }
+        break
+      }
+      case 'shared':
+      case 'everyone': {
+        const shareWith = item.assignment === 'everyone'
+          ? people.map(p => p.id)
+          : item.sharedWith.length > 0
+            ? item.sharedWith.filter(id => people.some(p => p.id === id))
+            : people.map(p => p.id)
+        const each = item.price / (1 + shareWith.length)
+        myShare += each
+        for (const id of shareWith) {
+          if (participantOwes[id] !== undefined) {
+            participantOwes[id] += each
+          }
+        }
+        break
+      }
+      case 'ignore':
+        break
+    }
+  }
+
+  myShare = round2(myShare)
+  const theyOwe = round2(Math.max(0, paidAmount - myShare))
+  const participants = people.map(p => ({
+    id: p.id,
+    name: p.name,
+    owes: round2(participantOwes[p.id] || 0),
+  }))
+
+  return { myShare, theyOwe, participants, inputs: {} }
 }
 
 export function legacyTypeToMethod(type: string): string {

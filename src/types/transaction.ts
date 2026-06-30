@@ -40,11 +40,15 @@ export interface SplitParticipant {
   settledAt: string | null
 }
 
+export type SplitItemAssignment = 'mine' | 'person' | 'shared' | 'everyone' | 'ignore'
+
 export interface SplitItem {
   name: string
   price: number
-  assignment: 'mine' | 'shared' | 'ignore'
+  assignment: SplitItemAssignment
   sharedWith: string[]
+  category?: string | null
+  categoryId?: string | null
 }
 
 export interface ReceiptScanMetadata {
@@ -52,6 +56,11 @@ export interface ReceiptScanMetadata {
   merchant: string | null
   itemCount: number
   originalTotal: number | null
+  groupCategory?: string | null
+  groupCategoryId?: string | null
+  groupSubtotal?: number | null
+  groupTax?: number | null
+  originalReceiptTotal?: number | null
 }
 
 export interface SplitPerson {

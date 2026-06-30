@@ -6,9 +6,26 @@ export interface NotraConfig {
   selectedPageTitle: string
   databaseMappings: Record<string, DatabaseMappingData>
   categoryValues?: Record<string, CategoryValue[]>
+  geminiKey?: string
 }
 
 const STORAGE_KEY = 'notra-config'
+
+export function getGeminiKey(): string | null {
+  const config = loadConfig()
+  return config?.geminiKey ?? null
+}
+
+export function saveGeminiKey(key: string): void {
+  const config = loadConfig() || {
+    notionToken: '',
+    selectedPageId: '',
+    selectedPageTitle: '',
+    databaseMappings: {},
+  }
+  config.geminiKey = key
+  saveConfig(config)
+}
 
 export function loadConfig(): NotraConfig | null {
   if (typeof window === 'undefined') return null

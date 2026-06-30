@@ -223,13 +223,17 @@ function normalizeSplitMetadata(parsed: Record<string, unknown>): SplitMetadata 
   if (parsed.split) {
     const s = parsed.split as Record<string, unknown>
     const participants: SplitParticipant[] = (s.participants as Array<Record<string, unknown>> || []).map(
-      (p: Record<string, unknown>) => ({
-        id: (p.id as string) || '',
-        name: (p.name as string) || '',
-        owes: typeof p.owes === 'number' ? p.owes : 0,
-        status: (p.status as 'pending' | 'settled') || 'pending',
-        settledAt: (p.settledAt as string) || null,
-      })
+      (p: Record<string, unknown>) => {
+        const name = (p.name as string) || ''
+        const rawId = (p.id as string) || ''
+        return {
+          id: rawId || stablePersonId(name),
+          name,
+          owes: typeof p.owes === 'number' ? p.owes : 0,
+          status: (p.status as 'pending' | 'settled') || 'pending',
+          settledAt: (p.settledAt as string) || null,
+        }
+      }
     )
 
     return {
@@ -265,12 +269,16 @@ function normalizeSplitMetadata(parsed: Record<string, unknown>): SplitMetadata 
 }
 
 export function stablePersonId(name: string): string {
-  return name
+  const id = name
+    .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return id || 'unknown'
 }
 
 export function groupTransactionsByDate(

@@ -12,6 +12,7 @@ import {
   Plus,
   Menu,
   X,
+  Scan,
 } from 'lucide-react'
 
 const navItems = [
@@ -55,7 +56,14 @@ export default function Nav() {
             })}
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href="/scan"
+            className="flex items-center gap-1.5 text-[#B8A99A] px-2.5 py-1.5 rounded-lg text-sm hover:text-[#F4EDE3] hover:bg-[#3A2A22]/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D49A4A]"
+          >
+            <Scan size={16} />
+            <span className="hidden lg:inline">Scan</span>
+          </Link>
           <Link
             href="/add?role=expense"
             className="flex items-center gap-1.5 bg-[#D49A4A] text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-[#C1883A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F4EDE3]"
@@ -78,6 +86,12 @@ export default function Nav() {
           Notra
         </Link>
         <div className="flex items-center gap-2">
+          <Link
+            href="/scan"
+            className="text-[#9B8778] hover:text-[#D49A4A] transition-colors p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D49A4A] rounded"
+          >
+            <Scan size={20} />
+          </Link>
           <Link
             href="/add?role=expense"
             className="bg-[#D49A4A] text-white p-2 rounded-lg hover:bg-[#C1883A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F4EDE3]"

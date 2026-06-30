@@ -6,6 +6,36 @@ import {
   NormalizedTransaction,
 } from '@/types/transaction'
 import { stablePersonId } from './notion-properties'
+import { getSplitPeople } from './split-people'
+
+export function getSplitMethodLabel(type: string): string {
+  switch (type) {
+    case 'manualEqual':
+    case 'splitEqually':
+    case 'equal':
+    case 'half':
+    case '50/50':
+    case 'Split Equally':
+      return 'Equal'
+    case 'manualPercent':
+    case 'percent':
+      return 'Percent'
+    case 'manualCustom':
+    case 'exactAmounts':
+    case 'exact':
+    case 'Custom Amount':
+      return 'Exact'
+    case 'manualHHS':
+    case 'adjust':
+    case 'hhs':
+    case 'shares':
+      return 'Adjust'
+    case 'receiptMultiPerson':
+      return 'Receipt split'
+    default:
+      return 'Split'
+  }
+}
 
 export function getSplitSubtitle(metadata: SplitMetadata): string | null {
   if (!metadata.split.enabled) return null
@@ -40,6 +70,10 @@ function formatSettledSubtitle(settled: SplitParticipant[], total: number): stri
     return `${settled[0].name} settled $${total.toFixed(2)}`
   }
   return `${settled.length} people settled $${total.toFixed(2)}`
+}
+
+function participantSortKey(p: SplitParticipant): string {
+  return stablePersonId(p.name) || 'zzz'
 }
 
 export function extractSplitTrackerEntries(
@@ -79,7 +113,7 @@ export function extractSplitTrackerEntries(
         amountOwed: p.owes,
         status: p.status === 'settled' ? 'settled' : 'pending',
         settledAt: p.settledAt,
-        participantId: p.id,
+        participantId: participantSortKey(p),
         splitMetadata: t.splitMetadata,
         transaction: t,
       })
@@ -99,10 +133,14 @@ export function groupSplitTrackerEntries(
     groups[entry.participantId].push(entry)
   }
 
+  const savedPeople = getSplitPeople()
+
   return Object.entries(groups).map(([personId, groupEntries]) => {
-    const personName = groupEntries[0].splitMetadata.split.participants.find(
-      p => p.id === personId
-    )?.name || groupEntries[0].splitMetadata.split.splitWith || 'Unknown person'
+    const saved = savedPeople.find(p => p.id === personId)
+    const nameFromParticipants = groupEntries[0].splitMetadata.split.participants.find(
+      p => participantSortKey(p) === personId
+    )?.name
+    const personName = saved?.name || nameFromParticipants || groupEntries[0].splitMetadata.split.splitWith || 'Unknown person'
 
     const pendingTotal = groupEntries
       .filter(e => e.status === 'pending')

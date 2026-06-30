@@ -22,8 +22,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ page: result })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create page'
+    console.error('[POST /api/notion/pages]', message, error)
     return NextResponse.json(
-      { error: 'Failed to create page' },
+      { error: message },
       { status: 500 }
     )
   }

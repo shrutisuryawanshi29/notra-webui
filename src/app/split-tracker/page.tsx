@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { isSetupComplete, loadConfig, getExpenseConfig } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import { SplitTrackerPersonGroup } from '@/types/transaction'
-import { extractSplitTrackerEntries, groupSplitTrackerEntries } from '@/lib/split-metadata'
+import { extractSplitTrackerEntries, groupSplitTrackerEntries, getSplitMethodLabel } from '@/lib/split-metadata'
+import { stablePersonId } from '@/lib/notion-properties'
 import { buildUpdatedSplitDetails } from '@/lib/notion-payload'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
@@ -151,43 +152,82 @@ export default function SplitTrackerPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                {group.entries.map((entry) => (
-                  <div
-                    key={`${entry.transactionId}-${entry.participantId}`}
-                    className="flex items-center justify-between py-1.5 border-b border-[#5A4638]/30 last:border-0"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[#F4EDE3] text-sm truncate">
-                        {entry.transactionTitle}
-                      </p>
-                      <p className="text-[#9B8778] text-xs">
-                        {entry.date}
-                        {entry.category ? ` • ${entry.category}` : ''}
-                      </p>
+                {group.entries.map((entry) => {
+                  const split = entry.splitMetadata.split
+                  const paidAmount = split.paidAmount || entry.transaction.paidAmount || entry.transaction.amount || 0
+                  const myShare = split.myShare || entry.transaction.amount || 0
+                  const owes = entry.amountOwed
+                  const method = split.type
+                  const methodLabel = getSplitMethodLabel(method)
+
+                  // Resolve the participant's original ID (UUID from receipt scan) to match against item sharedWith arrays
+                  const origParticipant = split.participants.find(
+                    p => p.id === entry.participantId
+                  ) || split.participants.find(
+                    p => p.name && stablePersonId(p.name) === entry.participantId
+                  )
+                  const origId = origParticipant?.id || entry.participantId
+
+                  // Filter shared items for this participant
+                  const items = (split.items || []).filter(
+                    item => item.assignment === 'shared' && item.sharedWith.includes(origId)
+                  )
+
+                  return (
+                    <div
+                      key={`${entry.transactionId}-${entry.participantId}`}
+                      className="flex items-start justify-between py-2 border-b border-[#5A4638]/30 last:border-0 gap-3"
+                    >
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <p className="text-[#F4EDE3] text-sm font-medium truncate">
+                          {entry.transactionTitle}
+                        </p>
+                        <p className="text-[#9B8778] text-xs">
+                          {entry.date}
+                          {entry.category ? ` • ${entry.category}` : ''}
+                          {methodLabel ? ` • ${methodLabel}` : ''}
+                        </p>
+                        <p className="text-[#B8A99A] text-[11px] space-x-2">
+                          <span>Paid <span className="text-[#F4EDE3]">${paidAmount.toFixed(2)}</span></span>
+                          <span className="text-[#5A4638]">•</span>
+                          <span>My share <span className="text-[#93B889]">${myShare.toFixed(2)}</span></span>
+                          <span className="text-[#5A4638]">•</span>
+                          <span>{group.personName} owes <span className="text-[#D8755D]">${owes.toFixed(2)}</span></span>
+                        </p>
+                        {items.length > 0 && (
+                          <div className="space-y-0.5 mt-1">
+                            {items.map((item, idx) => (
+                              <p key={idx} className="text-[#9B8778] text-[10px] pl-1">
+                                {item.name} — <span className="text-[#B8A99A]">${item.price.toFixed(2)}</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                        <p className="text-[#F4EDE3] text-sm font-bold tracking-tight">
+                          ${owes.toFixed(2)}
+                        </p>
+                        <button
+                          onClick={() =>
+                            toggleSettlement(
+                              entry.transactionId,
+                              entry.participantId,
+                              entry.status
+                            )
+                          }
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
+                            entry.status === 'settled'
+                              ? 'bg-[#93B889] text-white'
+                              : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'
+                          }`}
+                        >
+                          {entry.status === 'settled' ? 'Settled' : 'Pending'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-right ml-3 flex items-center gap-2">
-                      <p className="text-[#F4EDE3] text-sm font-medium tracking-tight">
-                        ${entry.amountOwed.toFixed(2)}
-                      </p>
-                      <button
-                        onClick={() =>
-                          toggleSettlement(
-                            entry.transactionId,
-                            entry.participantId,
-                            entry.status
-                          )
-                        }
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
-                          entry.status === 'settled'
-                            ? 'bg-[#93B889] text-white'
-                            : 'bg-[#D49A4A] text-white hover:bg-[#93B889]'
-                        }`}
-                      >
-                        {entry.status === 'settled' ? 'Settled' : 'Pending'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </Card>
           ))}
