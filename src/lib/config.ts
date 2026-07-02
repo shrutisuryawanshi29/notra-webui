@@ -63,11 +63,25 @@ export function getNotionToken(): string | null {
 }
 
 export function buildConfigFromSetupState(state: SetupState): NotraConfig {
+  const categoryValues: Record<string, CategoryValue[]> = {}
+  for (const [dbId, mapping] of Object.entries(state.databaseMappings)) {
+    if (mapping.categoryValuesJSON) {
+      try {
+        const parsed = JSON.parse(mapping.categoryValuesJSON) as CategoryValue[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          categoryValues[dbId] = parsed
+        }
+      } catch {
+        // skip malformed JSON
+      }
+    }
+  }
   return {
     notionToken: state.notionToken,
     selectedPageId: state.selectedPageId || '',
     selectedPageTitle: state.selectedPageTitle || '',
     databaseMappings: state.databaseMappings,
+    categoryValues: Object.keys(categoryValues).length > 0 ? categoryValues : undefined,
   }
 }
 

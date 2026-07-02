@@ -117,6 +117,16 @@ export function removeSplitPerson(id: string): void {
   saveSplitPeople(stored.filter(p => p.id !== id))
 }
 
+export function renameSplitPerson(id: string, newName: string): StoredPerson | null {
+  const trimmed = newName.trim()
+  if (!trimmed) return null
+  const stored = getSplitPeople()
+  const existing = stored.find(p => p.id === id)
+  if (!existing) return null
+  removeSplitPerson(id)
+  return addSplitPerson(trimmed)
+}
+
 export function clearSplitPeople(): void {
   if (!storageAvailable()) return
   localStorage.removeItem(STORAGE_KEY)
