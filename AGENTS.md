@@ -37,11 +37,21 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | `src/app/page.tsx` | Entrypoint — redirects to setup or dashboard |
 | `src/app/layout.tsx` | Root layout with `CacheProvider` + Nav |
 | `src/app/api/notion/*` | All server-side API routes (proxy to Notion API) |
+| `src/app/api/receipt/scan/route.ts` | Gemini receipt scan — refund detection + item dedup removed |
+| `src/app/scan/page.tsx` | Receipt review UI — split calc, category grouping, expense creation |
 | `src/lib/config.ts` | `loadConfig` / `saveConfig` — localStorage wrapper |
 | `src/lib/notion-client.ts` | Raw Notion API client (version `2022-06-28`) |
+| `src/lib/notion-payload.ts` | `buildNotionProperties` — constructs Notion API page payloads |
+| `src/lib/split-calc.ts` | `calculateReceiptSplit`, `calculateEqualSplit`, etc. |
+| `src/lib/category-suggestions.ts` | Local category suggestion engine (mirrors iOS logic) |
 | `src/hooks/use-notra-cache.tsx` | Global cache with reducer + lookups for relations/budgets |
-| `src/types/transaction.ts` | `NormalizedTransaction`, `SplitMetadata` |
+| `src/types/transaction.ts` | `NormalizedTransaction`, `SplitMetadata`, `SplitItem` |
 | `src/types/notion.ts` | `NotionPropertyValue` union type |
+| `src/types/gemini.ts` | `GeminiReceiptResult`, `GeminiReceiptItem`, `GeminiReceiptAdjustment` |
+| `src/components/TransactionForm.tsx` | Add/edit expense form with category suggestions, StyledSelect, Toast |
+| `src/components/StyledSelect.tsx` | Custom dark dropdown replacing native `<select>` |
+| `src/components/Toast.tsx` | Themed error toast replacing native `alert()` |
+| `src/components/ConfirmDialog.tsx` | Themed modal replacing `confirm()` |
 
 ## Notion API quirks
 
@@ -57,7 +67,24 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Icons from `lucide-react`; charts from `recharts`
 - Tailwind v4: PostCSS plugin `@tailwindcss/postcss` (not `tailwind.config.js`)
 - Dark theme custom colors (not using Tailwind default palette): `#1F1712`, `#D49A4A`, `#D8755D`, `#93B889`, etc.
+- Page bg: `#1B120E` | Card: `#2A1F18` | Card border: `#5A4638` | Accent: `#D49A4A` | Expense: `#D8755D` | Income: `#93B889`
 - No tests exist. Exercise caution when modifying core data-fetching or normalization logic.
+
+## Receipt Scan Split Calculation
+
+The receipt split calc (`src/app/scan/page.tsx` lines 361-447, reused in `handleCreate`) uses **scale-factor proportional allocation**:
+
+1. Determine `effectiveTotal = totalCharged ?? total` from receipt summary
+2. Subtract tax if `includeTax` is unchecked
+3. `scaleFactor = effectiveTotal / itemsTotal` (itemsTotal = sum of kept items)
+4. Scale each item price by `scaleFactor` before running standard split logic in `calculateReceiptSplit`
+5. Auto-reconciliation: adjust `myShare` by rounding residual so `myShare + theyOwe = effectiveTotal` within $0.01
+
+This ensures discounts, refunds, tax, and fees are all proportionally distributed. Same formula in all three contexts: `splitTotals` (summary display), `groupPreviews` (per-category preview), and `handleCreate` (actual expense creation).
+
+## Receipt Scan Refund Detection
+
+`src/app/api/receipt/scan/route.ts:9-16` — `isRefundItem()` classifies items as refunds if name/rawText matches `REFUND_PATTERNS` or `finalPrice <= 0`. Refund items are moved to `adjustments[]` instead of items, so they don't appear as assignable items or distort the item subtotal. Refund adjustments are shown in the summary card on the review page.
 
 ## Deployment
 
