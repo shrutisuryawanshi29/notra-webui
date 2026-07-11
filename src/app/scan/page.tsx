@@ -701,7 +701,6 @@ export default function ScanPage() {
                     <input
                       type="file"
                       accept="image/*,.pdf"
-                      capture="environment"
                       onChange={handleFileInput}
                       className="hidden"
                     />
@@ -728,7 +727,6 @@ export default function ScanPage() {
                       <input
                         type="file"
                         accept="image/*,.pdf"
-                        capture="environment"
                         onChange={handleFileInput}
                         className="hidden"
                       />
