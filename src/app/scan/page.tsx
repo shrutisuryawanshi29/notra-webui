@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { isSetupComplete, getExpenseConfig, getExpenseMapping, getGeminiKey, getNotionToken, loadConfig } from '@/lib/config'
 import { getStoredGeminiModel } from '@/lib/gemini-config'
 import { buildNotionProperties } from '@/lib/notion-payload'
-import { calculateReceiptSplit } from '@/lib/split-calc'
 import { getSplitPeople } from '@/lib/split-people'
-import type { GeminiReceiptResult, GeminiReceiptItem, GeminiReceiptPerson, GeminiClassification } from '@/types/gemini'
-import type { SplitMetadata, SplitItem, ReceiptScanMetadata } from '@/types/transaction'
+import { calculateReceiptSplitTotals, getDefaultFinalAmount, computeIncludedItemsTotal } from '@/lib/receipt-calc'
+import { normalizeReceiptResult } from '@/lib/receipt-normalizer'
+import type { GeminiReceiptResult, GeminiReceiptPerson, GeminiClassification } from '@/types/gemini'
+import type { ReceiptReviewItem, ReceiptReviewState, FinalAmountMode, SplitItem, ReceiptScanMetadata, SplitMetadata } from '@/types/transaction'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -32,6 +33,19 @@ function formatPrice(cents: number): string {
 
 function todayString(): string {
   return new Date().toLocaleDateString('en-CA')
+}
+
+const STATUS_BADGES: Record<string, { label: string; className: string }> = {
+  return_pending: { label: 'Return Pending', className: 'bg-[#D49A4A]/20 text-[#D49A4A]' },
+  return_complete: { label: 'Returned', className: 'bg-[#D8755D]/20 text-[#D8755D]' },
+  returned: { label: 'Returned', className: 'bg-[#D8755D]/20 text-[#D8755D]' },
+  refunded: { label: 'Refunded', className: 'bg-[#D8755D]/20 text-[#D8755D]' },
+  refund_complete: { label: 'Refunded', className: 'bg-[#D8755D]/20 text-[#D8755D]' },
+  cancelled: { label: 'Cancelled', className: 'bg-[#5A4638]/40 text-[#9B8778]' },
+  excluded: { label: 'Excluded', className: 'bg-[#5A4638]/40 text-[#9B8778]' },
+  not_charged: { label: 'Not Charged', className: 'bg-[#5A4638]/40 text-[#9B8778]' },
+  substituted: { label: 'Substituted', className: 'bg-[#6FC2D0]/20 text-[#6FC2D0]' },
+  unknown: { label: 'Unknown', className: 'bg-[#5A4638]/40 text-[#9B8778]' },
 }
 
 function extractTitle(page: Record<string, unknown>): string {
@@ -85,6 +99,12 @@ async function loadRelationOptions(dataSourceId?: string): Promise<{ options: { 
   return { options: [], error: 'Failed to load relation options' }
 }
 
+const ITEM_STATUSES_WARNING = ['return_pending', 'return_complete', 'returned', 'refunded', 'refund_complete', 'cancelled', 'excluded', 'not_charged', 'unknown']
+
+function isNonPurchasedStatus(s: string | null | undefined): boolean {
+  return !!s && s !== 'purchased' && s !== 'substituted'
+}
+
 export default function ScanPage() {
   const router = useRouter()
 
@@ -94,11 +114,13 @@ export default function ScanPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const [result, setResult] = useState<GeminiReceiptResult | null>(null)
-  const [merchant, setMerchant] = useState('')
-  const [date, setDate] = useState(todayString())
-  const [items, setItems] = useState<GeminiReceiptItem[]>([])
-  const [people, setPeople] = useState<GeminiReceiptPerson[]>([])
-  const [includeTax, setIncludeTax] = useState(true)
+  const [review, setReview] = useState<ReceiptReviewState | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    setLoaded(true)
+  }, [])
+
   const [categoryOptions, setCategoryOptions] = useState<{ name: string; id?: string }[]>([])
   const [categoryOptionsLoading, setCategoryOptionsLoading] = useState(true)
   const [categoryType, setCategoryType] = useState<string | null>(null)
@@ -107,6 +129,7 @@ export default function ScanPage() {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
   const [showMultiSelect, setShowMultiSelect] = useState(false)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [includeTax, setIncludeTax] = useState(true)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -149,16 +172,47 @@ export default function ScanPage() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCategoryOptions()
   }, [loadCategoryOptions])
 
   useEffect(() => {
     if (phase === 'review') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSavedPeople(getSplitPeople())
     }
   }, [phase])
+
+  const updateReviewItem = useCallback((id: string, upd: Partial<ReceiptReviewItem>) => {
+    setReview(prev => {
+      if (!prev) return prev
+      const nextItems = prev.items.map(item => {
+        if (item.id !== id) return item
+        const next = { ...item, ...upd }
+        if (upd.classification === 'everyone') {
+          next.sharedWith = prev.people.map(p => p.id)
+        } else if (upd.classification === 'person') {
+          next.sharedWith = item.classification === 'person' ? item.sharedWith : []
+        } else if (upd.classification === 'mine' || upd.classification === 'ignore') {
+          next.sharedWith = []
+        }
+        if (upd.classification === 'person' && item.classification !== 'person' && prev.people.length > 0) {
+          next.sharedWith = [prev.people[0].id]
+        }
+        return next
+      })
+      return { ...prev, items: nextItems }
+    })
+  }, [])
+
+  const updateReviewPeople = useCallback((people: GeminiReceiptPerson[]) => {
+    setReview(prev => {
+      if (!prev) return prev
+      const allIds = people.map(p => p.id)
+      const nextItems = prev.items.map(item =>
+        item.classification === 'everyone' ? { ...item, sharedWith: allIds } : item
+      )
+      return { ...prev, people, items: nextItems }
+    })
+  }, [])
 
   const handleFileSelect = useCallback(async (file: File) => {
     setLoading(true)
@@ -204,13 +258,9 @@ export default function ScanPage() {
 
       const scanResult = data.result as GeminiReceiptResult
       setResult(scanResult)
-      setMerchant(scanResult.merchant || '')
-      setDate(scanResult.date || todayString())
-      setItems(scanResult.items.map(item => ({ ...item })))
 
-      const initialPeople: GeminiReceiptPerson[] = []
-      setPeople(initialPeople)
-
+      const { state } = normalizeReceiptResult(scanResult)
+      setReview(state)
       setPhase('review')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to scan receipt')
@@ -233,24 +283,6 @@ export default function ScanPage() {
     }
   }, [handleFileSelect])
 
-  const updateItem = useCallback((id: string, upd: Partial<GeminiReceiptItem>) => {
-    setItems(prev => prev.map(item => {
-      if (item.id !== id) return item
-      const next = { ...item, ...upd }
-      if (upd.classification === 'everyone') {
-        next.sharedWith = people.map(p => p.id)
-      } else if (upd.classification === 'person') {
-        next.sharedWith = item.classification === 'person' ? item.sharedWith : []
-      } else if (upd.classification === 'mine' || upd.classification === 'ignore') {
-        next.sharedWith = []
-      }
-      if (upd.classification === 'person' && item.classification !== 'person' && people.length > 0) {
-        next.sharedWith = [people[0].id]
-      }
-      return next
-    }))
-  }, [people])
-
   const toggleItemSelect = useCallback((id: string) => {
     setSelectedItemIds(prev => {
       const next = new Set(prev)
@@ -259,45 +291,55 @@ export default function ScanPage() {
     })
   }, [])
 
-  const toggleSelectAll = useCallback(() => {
-    setSelectedItemIds(prev => {
-      if (prev.size === items.length) return new Set()
-      return new Set(items.map(i => i.id))
-    })
-  }, [items])
-
   const applyOwnershipToSelected = useCallback((classification: GeminiClassification) => {
-    setItems(prev => prev.map(item => {
-      if (!selectedItemIds.has(item.id)) return item
-      const next = { ...item, classification }
-      if (classification === 'everyone') {
-        next.sharedWith = people.map(p => p.id)
-      } else if (classification === 'person') {
-        next.sharedWith = people.length > 0 ? [people[0].id] : []
-      } else if (classification === 'shared') {
-        if (next.sharedWith.length === 0 && people.length > 0) {
-          next.sharedWith = [people[0].id]
+    setReview(prev => {
+      if (!prev) return prev
+      const nextItems = prev.items.map(item => {
+        if (!selectedItemIds.has(item.id)) return item
+        const next = { ...item, classification }
+        if (classification === 'everyone') {
+          next.sharedWith = prev.people.map(p => p.id)
+        } else if (classification === 'person') {
+          next.sharedWith = prev.people.length > 0 ? [prev.people[0].id] : []
+        } else if (classification === 'shared') {
+          if (next.sharedWith.length === 0 && prev.people.length > 0) {
+            next.sharedWith = [prev.people[0].id]
+          }
+        } else {
+          next.sharedWith = []
         }
-      } else {
-        next.sharedWith = []
-      }
-      return next
-    }))
+        return next
+      })
+      return { ...prev, items: nextItems }
+    })
     setSelectedItemIds(new Set())
-  }, [selectedItemIds, people])
+  }, [selectedItemIds])
 
   const applyCategoryToSelected = useCallback((cat: string) => {
-    setItems(prev => prev.map(item =>
-      selectedItemIds.has(item.id) ? { ...item, category: cat } : item
-    ))
+    setReview(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map(item =>
+          selectedItemIds.has(item.id) ? { ...item, category: cat } : item
+        ),
+      }
+    })
     setSelectedItemIds(new Set())
   }, [selectedItemIds])
 
   const assignPersonToSelected = useCallback((personId: string) => {
-    setItems(prev => prev.map(item => {
-      if (!selectedItemIds.has(item.id)) return item
-      return { ...item, classification: 'person', sharedWith: [personId] }
-    }))
+    setReview(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map(item =>
+          selectedItemIds.has(item.id)
+            ? { ...item, classification: 'person' as const, sharedWith: [personId] }
+            : item
+        ),
+      }
+    })
     setSelectedItemIds(new Set())
   }, [selectedItemIds])
 
@@ -305,201 +347,187 @@ export default function ScanPage() {
     const name = prompt('Enter person name:')
     if (name?.trim()) {
       const newPerson: GeminiReceiptPerson = { id: generateId(), name: name.trim() }
-      setPeople(prev => [...prev, newPerson])
+      updateReviewPeople([...(review?.people ?? []), newPerson])
     }
-  }, [])
+  }, [review, updateReviewPeople])
 
   const removePerson = useCallback((personId: string) => {
-    setPeople(prev => prev.filter(p => p.id !== personId))
-    setItems(prev => prev.map(item => ({
-      ...item,
-      sharedWith: item.sharedWith.filter(id => id !== personId),
-    })))
-  }, [])
-
-  useEffect(() => {
-    const allIds = people.map(p => p.id)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setItems(prev => prev.map(item =>
-      item.classification === 'everyone' ? { ...item, sharedWith: allIds } : item
-    ))
-  }, [people])
+    updateReviewPeople((review?.people ?? []).filter(p => p.id !== personId))
+    setReview(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map(item => ({
+          ...item,
+          sharedWith: item.sharedWith.filter(id => id !== personId),
+        })),
+      }
+    })
+  }, [review, updateReviewPeople])
 
   const toggleSharedWith = useCallback((itemId: string, personId: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id !== itemId) return item
-      const has = item.sharedWith.includes(personId)
+    setReview(prev => {
+      if (!prev) return prev
       return {
-        ...item,
-        sharedWith: has
-          ? item.sharedWith.filter(id => id !== personId)
-          : [...item.sharedWith, personId],
+        ...prev,
+        items: prev.items.map(item => {
+          if (item.id !== itemId) return item
+          const has = item.sharedWith.includes(personId)
+          return {
+            ...item,
+            sharedWith: has
+              ? item.sharedWith.filter(id => id !== personId)
+              : [...item.sharedWith, personId],
+          }
+        }),
       }
-    }))
+    })
   }, [])
 
   const bulkSet = useCallback((classification: GeminiClassification) => {
-    setItems(prev => prev.map(item => {
-      const next = { ...item, classification }
-      if (classification === 'everyone') {
-        next.sharedWith = people.map(p => p.id)
-      } else if (classification === 'person') {
-        next.sharedWith = people.length > 0 ? [people[0].id] : []
-      } else if (classification === 'shared') {
-        if (next.sharedWith.length === 0 && people.length > 0) {
-          next.sharedWith = [people[0].id]
-        }
-      } else {
-        next.sharedWith = []
+    setReview(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map(item => {
+          const next = { ...item, classification }
+          if (classification === 'everyone') {
+            next.sharedWith = prev.people.map(p => p.id)
+          } else if (classification === 'person') {
+            next.sharedWith = prev.people.length > 0 ? [prev.people[0].id] : []
+          } else if (classification === 'shared') {
+            if (next.sharedWith.length === 0 && prev.people.length > 0) {
+              next.sharedWith = [prev.people[0].id]
+            }
+          } else {
+            next.sharedWith = []
+          }
+          return next
+        }),
       }
-      return next
-    }))
-  }, [people])
+    })
+  }, [])
 
   const [bulkCategory, setBulkCategory] = useState('')
   const bulkSetCategory = useCallback(() => {
     if (!bulkCategory) return
-    setItems(prev => prev.map(item => ({ ...item, category: bulkCategory })))
+    setReview(prev => {
+      if (!prev) return prev
+      return { ...prev, items: prev.items.map(item => ({ ...item, category: bulkCategory })) }
+    })
   }, [bulkCategory])
 
-  const splitTotals = useMemo(() => {
-    const keptItems = items.filter(i => i.classification !== 'ignore')
-    const itemsTotal = keptItems.reduce((s, i) => s + i.finalPrice, 0)
-
-    const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
-    const rawTax = result?.summary.tax ?? null
-
-    const totalToSplit = rawCharged != null
-      ? rawCharged
-      : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
-
-    const effectiveTotal = includeTax || rawTax == null
-      ? totalToSplit
-      : totalToSplit - rawTax
-
-    const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
-
-    let personalTotal = 0
-    let myShare = 0
-    const personOwes: Record<string, number> = {}
-    for (const person of people) {
-      personOwes[person.id] = 0
-    }
-
-    for (const item of keptItems) {
-      const scaledPrice = round2(item.finalPrice * scaleFactor)
-      switch (item.classification) {
-        case 'mine':
-          myShare += scaledPrice
-          personalTotal += scaledPrice
+  const setFinalAmountMode = useCallback((mode: FinalAmountMode) => {
+    setReview(prev => {
+      if (!prev) return prev
+      let amount: number
+      switch (mode) {
+        case 'printed_total':
+          amount = round2(prev.chargedAmount ?? prev.printedTotal ?? prev.itemsSubtotal ?? 0)
           break
-        case 'shared': {
-          const sharedWith = item.sharedWith.length > 0
-            ? item.sharedWith
-            : people.map(p => p.id)
-          const count = 1 + sharedWith.length
-          const each = scaledPrice / count
-          myShare += each
-          for (const pid of sharedWith) {
-            personOwes[pid] = (personOwes[pid] || 0) + each
-          }
+        case 'items_only':
+          amount = round2(computeIncludedItemsTotal(prev.items))
+          break
+        case 'items_plus_tax': {
+          const kept = prev.items.filter(i => i.classification !== 'ignore')
+          const itemsTotal = kept.reduce((s, i) => s + i.finalPrice, 0)
+          amount = round2(itemsTotal + (prev.tax ?? 0))
           break
         }
-        case 'person': {
-          const pid = item.sharedWith[0]
-          if (pid) personOwes[pid] = (personOwes[pid] || 0) + scaledPrice
+        case 'custom':
+          amount = prev.finalAmountToSplit
           break
-        }
-        case 'everyone': {
-          const allIds = people.map(p => p.id)
-          const count = 1 + allIds.length
-          const each = scaledPrice / count
-          myShare += each
-          for (const pid of allIds) {
-            personOwes[pid] = (personOwes[pid] || 0) + each
-          }
-          break
-        }
+        default:
+          amount = round2(getDefaultFinalAmount(prev))
       }
+      return { ...prev, finalAmountMode: mode, finalAmountToSplit: amount }
+    })
+  }, [])
+
+  const activeAmount = useMemo(() => {
+    if (!review) return 0
+    let base: number
+    switch (review.finalAmountMode) {
+      case 'printed_total':
+        base = review.chargedAmount ?? review.printedTotal ?? review.itemsSubtotal ?? 0
+        break
+      case 'items_only':
+        base = computeIncludedItemsTotal(review.items)
+        break
+      case 'items_plus_tax':
+        base = round2(computeIncludedItemsTotal(review.items) + (review.tax ?? 0))
+        break
+      case 'custom':
+        base = review.finalAmountToSplit
+        break
+      default:
+        base = getDefaultFinalAmount(review)
     }
+    return round2(base)
+  }, [review])
 
-    myShare = round2(myShare)
-    personalTotal = round2(personalTotal)
-    for (const pid of Object.keys(personOwes)) {
-      personOwes[pid] = round2(personOwes[pid])
-    }
-
-    const participantsSum = round2(Object.values(personOwes).reduce((s, v) => s + v, 0))
-    const totalAllocated = round2(myShare + participantsSum)
-    const remaining = round2(effectiveTotal - totalAllocated)
-    if (Math.abs(remaining) > 0.005) {
-      myShare = round2(myShare + remaining)
-    }
-
-    const theyOwe = round2(effectiveTotal - myShare)
-
-    return { personalTotal, myShare, theyOwe, personOwes }
-  }, [items, people, includeTax, result])
-
-  const groupPreviews = useMemo(() => {
-    const keptItems = items.filter(i => i.classification !== 'ignore')
-    const itemsTotal = keptItems.reduce((s, i) => s + i.finalPrice, 0)
-
-    const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
-    const rawTax = result?.summary.tax ?? null
-    const totalToSplit = rawCharged != null
-      ? rawCharged
-      : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
-    const effectiveTotal = includeTax || rawTax == null
-      ? totalToSplit
-      : totalToSplit - rawTax
-    const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
-
-    const groups = new Map<string, GeminiReceiptItem[]>()
-    for (const item of keptItems) {
-      const cat = item.category || 'Uncategorized'
-      if (!groups.has(cat)) groups.set(cat, [])
-      groups.get(cat)!.push(item)
-    }
-
-    const previews: { category: string; itemCount: number; paidAmount: number; myShare: number }[] = []
-    for (const [cat, groupItems] of groups) {
-      const groupRawTotal = groupItems.reduce((s, i) => s + i.finalPrice, 0)
-      const groupPaidAmount = round2(groupRawTotal * scaleFactor)
-      const effectiveItems: SplitItem[] = groupItems.map(item => ({
-        name: item.name,
-        price: round2(item.finalPrice * scaleFactor),
-        assignment: item.classification as SplitItem['assignment'],
-        sharedWith: item.sharedWith,
-        category: item.category,
-      }))
-      const result_ = calculateReceiptSplit(effectiveItems, groupPaidAmount, people)
-      previews.push({ category: cat, itemCount: groupItems.length, paidAmount: groupPaidAmount, myShare: result_.myShare })
-    }
-    return previews
-  }, [items, people, includeTax, result])
+  const calcResult = useMemo(() => {
+    if (!review) return null
+    const effectiveAmount = (includeTax || review.tax == null)
+      ? activeAmount
+      : Math.max(0, activeAmount - (review.tax ?? 0))
+    return calculateReceiptSplitTotals({
+      items: review.items,
+      people: review.people,
+      finalAmountToSplit: effectiveAmount,
+    })
+  }, [review, includeTax, activeAmount])
 
   const validationWarnings = useMemo(() => {
+    if (!review) return []
     const warnings: string[] = []
-    const noCat = items.filter(i => i.classification !== 'ignore' && !i.category)
+    const active = review.items.filter(i => i.classification !== 'ignore')
+
+    const noCat = active.filter(i => !i.category)
     if (noCat.length > 0) warnings.push(`${noCat.length} item(s) without category: "${noCat[0].name}"`)
 
-    const noOwner = items.filter(i => i.classification !== 'ignore' && !i.classification)
+    const noOwner = active.filter(i => !i.classification)
     if (noOwner.length > 0) warnings.push(`${noOwner.length} item(s) without ownership`)
 
-    const personNoPerson = items.filter(i => i.classification === 'person' && i.sharedWith.length === 0)
+    const personNoPerson = active.filter(i => i.classification === 'person' && i.sharedWith.length === 0)
     if (personNoPerson.length > 0) warnings.push(`${personNoPerson.length} person-assigned item(s) without a person selected`)
 
-    const sharedNoPeople = items.filter(i => i.classification === 'shared' && i.sharedWith.length === 0 && people.length > 0)
+    const sharedNoPeople = active.filter(i => i.classification === 'shared' && i.sharedWith.length === 0 && review.people.length > 0)
     if (sharedNoPeople.length > 0) warnings.push(`${sharedNoPeople.length} shared item(s) without people selected — they will be split among everyone`)
 
-    if (items.filter(i => i.classification !== 'ignore').length === 0) {
+    const nonPurchasedNotIgnored = active.filter(i => isNonPurchasedStatus(i.status))
+    if (nonPurchasedNotIgnored.length > 0) {
+      warnings.push(`${nonPurchasedNotIgnored.length} item(s) with "${nonPurchasedNotIgnored[0].status}" status — click "Ignore" to exclude from split`)
+    }
+
+    if (active.length === 0) {
       warnings.push('No non-ignored items — transaction would be empty')
     }
+
+    if (review.itemsSubtotal != null && activeAmount <= 0) {
+      warnings.push('Final Amount to Split is 0 but receipt has subtotal $' + review.itemsSubtotal.toFixed(2))
+    }
+
+    const ignoredTotal = review.items
+      .filter(i => i.classification === 'ignore')
+      .reduce((s, i) => s + Math.abs(i.finalPrice), 0)
+    if (ignoredTotal > 0 && review.finalAmountMode === 'printed_total') {
+      warnings.push(`You ignored $${ignoredTotal.toFixed(2)} of items, but Final Amount to Split still uses printed total. Review before saving.`)
+    }
+
+    if (review.discount != null && Math.abs(review.discount) > 0 && (review.finalAmountMode === 'items_only' || review.finalAmountMode === 'items_plus_tax')) {
+      warnings.push('Savings/discounts are already reflected in printed total. They are not subtracted again.')
+    }
+
+    if (ignoredTotal > 0 && review.finalAmountMode === 'items_plus_tax') {
+      warnings.push('Tax is approximate when ignored items exist. Use Custom to adjust final amount if needed.')
+    }
+
     return warnings
-  }, [items, people])
+  }, [review])
 
   const handleCreate = useCallback(async () => {
+    if (!review || !calcResult) return
     setCreating(true)
     setCreateError(null)
 
@@ -512,26 +540,17 @@ export default function ScanPage() {
       const expenseCfg = getExpenseConfig(config)
       const token = getNotionToken()
 
-      const nonIgnoreItems = items.filter(i => i.classification !== 'ignore')
-
-      const uncategorized = nonIgnoreItems.filter(i => !i.category)
+      const splitCandidates = review.items.filter(i => i.classification !== 'ignore')
+      const uncategorized = splitCandidates.filter(i => !i.category)
       if (uncategorized.length > 0) {
         throw new Error(`Set a category for each item before saving. Missing: "${uncategorized[0].name}"`)
       }
 
-      const itemsTotal = nonIgnoreItems.reduce((sum, i) => sum + i.finalPrice, 0)
-      const rawCharged = result?.summary.totalCharged ?? result?.summary.total ?? null
-      const rawTax = result?.summary.tax ?? null
-      const totalToSplit = rawCharged != null
-        ? rawCharged
-        : (itemsTotal + (includeTax && rawTax != null ? rawTax : 0))
-      const effectiveTotal = includeTax || rawTax == null
-        ? totalToSplit
-        : totalToSplit - rawTax
-      const scaleFactor = itemsTotal > 0 ? effectiveTotal / itemsTotal : 0
+      const rawTax = review.tax
+      const scaleFactor = calcResult.scaleFactor
 
-      const categoryGroups = new Map<string, GeminiReceiptItem[]>()
-      for (const item of nonIgnoreItems) {
+      const categoryGroups = new Map<string, ReceiptReviewItem[]>()
+      for (const item of splitCandidates) {
         const key = item.category || 'Uncategorized'
         if (!categoryGroups.has(key)) categoryGroups.set(key, [])
         categoryGroups.get(key)!.push(item)
@@ -546,7 +565,7 @@ export default function ScanPage() {
 
         const groupItemPrice = groupItems.reduce((s, i) => s + i.finalPrice, 0)
         const groupPaidAmount = round2(groupItemPrice * scaleFactor)
-        const groupTax = rawTax != null ? round2(groupItemPrice * (rawTax / itemsTotal)) : 0
+        const groupTax = rawTax != null ? round2(groupItemPrice * (rawTax / calcResult.includedItemsTotal)) : 0
 
         const effectiveItems: SplitItem[] = groupItems.map(item => ({
           name: item.name,
@@ -557,49 +576,86 @@ export default function ScanPage() {
           categoryId: catId,
         }))
 
-        const splitItems: SplitItem[] = groupItems.map(item => ({
-          name: item.name,
-          price: item.finalPrice,
-          assignment: item.classification,
-          sharedWith: item.sharedWith,
-          category: item.category,
-          categoryId: catId,
-        }))
+        const groupMyShare = round2(
+          effectiveItems
+            .filter(i => i.assignment !== 'person')
+            .reduce((s, i) => {
+              switch (i.assignment) {
+                case 'mine': return s + i.price
+                case 'shared': {
+                  const sw = i.sharedWith.length > 0 ? i.sharedWith : review.people.map(p => p.id)
+                  return s + i.price / (1 + sw.length)
+                }
+                case 'everyone': {
+                  return s + i.price / (1 + review.people.length)
+                }
+                default: return s
+              }
+            }, 0)
+        )
 
-        const groupResult = calculateReceiptSplit(effectiveItems, groupPaidAmount, people)
-
-        const groupTitle = `${merchant || 'Receipt'} - ${catName}`
+        const groupTitle = `${review.merchant || 'Receipt'} - ${review.date || todayString()} - ${catName}`
 
         const receiptMeta: ReceiptScanMetadata = {
           source: 'gemini-v1',
-          merchant: merchant || null,
+          merchant: review.merchant ?? null,
           itemCount: groupItems.length,
-          originalTotal: result?.summary.total ?? result?.summary.totalCharged ?? null,
+          originalTotal: review.printedTotal ?? review.chargedAmount ?? null,
           groupCategory: catName,
           groupCategoryId: catId ?? null,
           groupSubtotal: groupItemPrice,
           groupTax,
-          originalReceiptTotal: result?.summary.totalCharged ?? result?.summary.total ?? null,
+          originalReceiptTotal: review.chargedAmount ?? review.printedTotal ?? null,
+          printedTotal: review.printedTotal,
+          chargedAmount: review.chargedAmount,
+          finalAmountToSplit: activeAmount,
+          finalAmountMode: review.finalAmountMode,
+          manualAdjustment: review.manualAdjustment,
+          manualAdjustmentNote: review.manualAdjustmentNote,
+          splitItems: review.items.map(i => ({
+            id: i.id,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            finalPrice: i.finalPrice,
+            status: i.status,
+            category: i.category,
+            classification: i.classification,
+            sharedWith: i.sharedWith,
+          })),
+          itemStatuses: Object.fromEntries(review.items.map(i => [i.id, i.status])),
+          warnings: [...validationWarnings],
         }
 
         const groupSplitMetadata: SplitMetadata = {
           version: 2,
           split: {
-            enabled: true,
+            enabled: review.people.length > 0,
             paidAmount: groupPaidAmount,
-            myShare: groupResult.myShare,
-            theyOwe: groupResult.theyOwe,
-            type: 'receiptMultiPerson',
+            myShare: groupMyShare,
+            theyOwe: round2(groupPaidAmount - groupMyShare),
+            type: review.people.length > 0 ? 'receiptMultiPerson' : 'receipt',
             status: 'pending',
-            participants: groupResult.participants.map(p => ({
+            participants: review.people.map(p => ({
               id: p.id,
               name: p.name,
-              owes: p.owes,
+              owes: calcResult.personOwes[p.id] ?? 0,
               status: 'pending' as const,
               settledAt: null,
             })),
-            items: splitItems,
-            inputs: { includeTax },
+            items: splitCandidates.map(item => ({
+              name: item.name,
+              price: item.finalPrice,
+              assignment: item.classification,
+              sharedWith: item.sharedWith,
+              category: item.category,
+              categoryId: catId,
+            })),
+            inputs: {
+              finalAmountToSplit: activeAmount,
+              finalAmountMode: review.finalAmountMode,
+              manualAdjustment: review.manualAdjustment,
+            },
           },
           receipt: receiptMeta,
         }
@@ -608,8 +664,8 @@ export default function ScanPage() {
           config, 'expense',
           {
             title: groupTitle,
-            amount: groupResult.myShare,
-            date,
+            amount: groupMyShare,
+            date: review.date || todayString(),
             category: catName,
             splitMetadata: groupSplitMetadata,
           },
@@ -644,20 +700,27 @@ export default function ScanPage() {
     } finally {
       setCreating(false)
     }
-  }, [merchant, date, categoryOptions, categoryType, items, people, includeTax, result, router])
+  }, [review, activeAmount, calcResult, categoryOptions, categoryType, router, validationWarnings])
 
   const handleRetake = useCallback(() => {
     setPhase('upload')
     setResult(null)
+    setReview(null)
     setPreviewUrl(null)
     setError(null)
-    setMerchant('')
-    setDate(todayString())
-    setItems([])
-    setPeople([])
+    setSelectedItemIds(new Set())
+    setExpandedCategories(new Set())
   }, [])
 
-  if (!isSetupComplete()) return null
+  if (!loaded) return null
+  if (!isSetupComplete()) {
+    return (
+      <div className="p-5 max-w-3xl mx-auto">
+        <h1 className="text-[#F4EDE3] text-2xl font-bold tracking-tight mb-6">Scan Receipt</h1>
+        <p className="text-[#B8A99A] text-sm">Setup not complete. Please complete setup first.</p>
+      </div>
+    )
+  }
 
   if (phase === 'upload') {
     return (
@@ -739,25 +802,20 @@ export default function ScanPage() {
                     </Link>
                   </div>
                 </div>
-            </div>
-          </Card>
-        )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     )
   }
 
-  const itemCount = items.length
-  const mineCount = items.filter(i => i.classification === 'mine').length
-  const sharedCount = items.filter(i => i.classification === 'shared').length
-  const ignoreCount = items.filter(i => i.classification === 'ignore').length
-  const summaryData = result?.summary
-  const adjustments = result?.adjustments ?? []
-  const showSummary = !!(summaryData && (summaryData.itemsSubtotal != null ||
-    summaryData.tax != null || summaryData.serviceFee != null ||
-    summaryData.deliveryFee != null || summaryData.tip != null ||
-    summaryData.discount != null || summaryData.total != null ||
-    summaryData.totalCharged != null)) || adjustments.length > 0
+  if (!review || !calcResult) return null
+
+  const items = review.items
+  const adjustments = review.adjustments
+  const showSummary = !!(review.printedTotal != null || review.chargedAmount != null || review.itemsSubtotal != null ||
+    review.tax != null || review.deliveryFee != null || review.tip != null || review.discount != null)
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#1B120E] p-4 md:p-6">
@@ -798,8 +856,8 @@ export default function ScanPage() {
               <label className="text-xs text-[#9B8778] font-semibold uppercase tracking-wider">Merchant</label>
               <input
                 type="text"
-                value={merchant}
-                onChange={e => setMerchant(e.target.value)}
+                value={review.merchant || ''}
+                onChange={e => setReview(prev => prev ? { ...prev, merchant: e.target.value } : prev)}
                 className="w-full bg-[#1B120E] text-[#F4EDE3] border border-[#5A4638] rounded-lg px-3 py-2 mt-1 text-sm focus:outline-none focus:border-[#D49A4A]"
                 placeholder="Store name"
               />
@@ -808,8 +866,8 @@ export default function ScanPage() {
               <label className="text-xs text-[#9B8778] font-semibold uppercase tracking-wider">Date</label>
               <input
                 type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
+                value={review.date || todayString()}
+                onChange={e => setReview(prev => prev ? { ...prev, date: e.target.value } : prev)}
                 className="w-full bg-[#1B120E] text-[#F4EDE3] border border-[#5A4638] rounded-lg px-3 py-2 mt-1 text-sm focus:outline-none focus:border-[#D49A4A]"
               />
             </div>
@@ -829,12 +887,12 @@ export default function ScanPage() {
               {savedPeople.map(sp => (
                 <Chip
                   key={sp.id}
-                  selected={people.some(p => p.id === sp.id)}
+                  selected={review.people.some(p => p.id === sp.id)}
                   onClick={() => {
-                    setPeople(prev =>
-                      prev.some(p => p.id === sp.id)
-                        ? prev.filter(p => p.id !== sp.id)
-                        : [...prev, { id: sp.id, name: sp.name }]
+                    updateReviewPeople(
+                      review.people.some(p => p.id === sp.id)
+                        ? review.people.filter(p => p.id !== sp.id)
+                        : [...review.people, { id: sp.id, name: sp.name }]
                     )
                   }}
                 >{sp.name}</Chip>
@@ -845,7 +903,7 @@ export default function ScanPage() {
 
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-[#F4EDE3]">Items ({itemCount})</h2>
+            <h2 className="text-sm font-semibold text-[#F4EDE3]">Items ({items.length})</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setShowMultiSelect(!showMultiSelect); setSelectedItemIds(new Set()) }}
@@ -883,20 +941,20 @@ export default function ScanPage() {
               <button onClick={() => applyOwnershipToSelected('ignore')} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#5A4638]/20 text-[#9B8778] hover:bg-[#5A4638]/40 transition-colors">Ignore</button>
               <div className="w-px h-4 bg-[#5A4638]" />
               {categoryOptions.length > 0 && (
-                <StyledSelect
-                  value=""
-                  onChange={val => { if (val) applyCategoryToSelected(val) }}
-                  options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
-                  placeholder="Set category"
-                  size="sm"
-                  triggerClassName="bg-[#1B120E]"
+                  <StyledSelect
+                    value=""
+                    onChange={val => { if (val) applyCategoryToSelected(val) }}
+                    options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
+                    placeholder="Set category"
+                    size="category"
+                    triggerClassName="bg-[#1B120E] min-w-[140px]"
                 />
               )}
-              {people.length > 0 && (
+              {review.people.length > 0 && (
                 <StyledSelect
                   value=""
                   onChange={val => { if (val) assignPersonToSelected(val) }}
-                  options={people.map(p => ({ value: p.id, label: p.name }))}
+                  options={review.people.map(p => ({ value: p.id, label: p.name }))}
                   placeholder="Assign person"
                   size="sm"
                   triggerClassName="bg-[#1B120E]"
@@ -912,8 +970,8 @@ export default function ScanPage() {
                 onChange={setBulkCategory}
                 options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
                 placeholder="Set category for all..."
-                size="sm"
-                triggerClassName="bg-[#2A1F18] text-xs"
+                size="category"
+                triggerClassName="bg-[#2A1F18] min-w-[170px]"
               />
               <button
                 onClick={bulkSetCategory}
@@ -926,8 +984,8 @@ export default function ScanPage() {
           )}
 
           {(() => {
-            const catGroups = new Map<string, GeminiReceiptItem[]>()
-            const uncategorized: GeminiReceiptItem[] = []
+            const catGroups = new Map<string, ReceiptReviewItem[]>()
+            const uncategorized: ReceiptReviewItem[] = []
             for (const item of items) {
               if (item.category) {
                 if (!catGroups.has(item.category)) catGroups.set(item.category, [])
@@ -994,9 +1052,14 @@ export default function ScanPage() {
                                     <input
                                       type="text"
                                       value={item.name}
-                                      onChange={e => updateItem(item.id, { name: e.target.value })}
+                                      onChange={e => updateReviewItem(item.id, { name: e.target.value })}
                                       className="flex-1 bg-transparent text-[#F4EDE3] text-sm focus:outline-none min-w-0"
                                     />
+                                    {item.status && item.status !== 'purchased' && STATUS_BADGES[item.status] && (
+                                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${STATUS_BADGES[item.status].className}`}>
+                                        {STATUS_BADGES[item.status].label}
+                                      </span>
+                                    )}
                                     <span className="text-[#D49A4A] text-sm font-semibold shrink-0">{formatPrice(item.finalPrice)}</span>
                                   </div>
                                   <div className="flex items-center gap-2 mt-0.5">
@@ -1006,9 +1069,6 @@ export default function ScanPage() {
                                     {item.unitPrice != null && (
                                       <span className="text-[#6A5140] text-xs">{formatPrice(item.unitPrice)} ea</span>
                                     )}
-                                    {item.categoryHint && item.category === item.categoryHint && (
-                                      <span className="text-[#6A5140] text-[10px]">(auto-detected)</span>
-                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1016,29 +1076,29 @@ export default function ScanPage() {
                               <div className="flex flex-wrap items-center gap-1 mt-1.5">
                                 <Chip
                                   selected={item.classification === 'mine'}
-                                  onClick={() => updateItem(item.id, { classification: 'mine' })}
+                                  onClick={() => updateReviewItem(item.id, { classification: 'mine' })}
                                   variant={item.classification === 'mine' ? 'settled' : 'default'}
                                 >Mine</Chip>
                                 <Chip
                                   selected={item.classification === 'person'}
-                                  onClick={() => updateItem(item.id, { classification: 'person' })}
+                                  onClick={() => updateReviewItem(item.id, { classification: 'person' })}
                                   variant={item.classification === 'person' ? 'settled' : 'default'}
                                   className={item.classification === 'person' ? '!bg-[#6FC2D0] !text-white' : ''}
                                 >Person</Chip>
                                 <Chip
                                   selected={item.classification === 'shared'}
-                                  onClick={() => updateItem(item.id, { classification: 'shared' })}
+                                  onClick={() => updateReviewItem(item.id, { classification: 'shared' })}
                                   variant={item.classification === 'shared' ? 'pending' : 'default'}
                                 >Shared</Chip>
                                 <Chip
                                   selected={item.classification === 'everyone'}
-                                  onClick={() => updateItem(item.id, { classification: 'everyone' })}
+                                  onClick={() => updateReviewItem(item.id, { classification: 'everyone' })}
                                   variant={item.classification === 'everyone' ? 'pending' : 'default'}
                                   className={item.classification === 'everyone' ? '!bg-[#8B7EF6] !text-white' : ''}
                                 >Everyone</Chip>
                                 <Chip
                                   selected={item.classification === 'ignore'}
-                                  onClick={() => updateItem(item.id, { classification: 'ignore' })}
+                                  onClick={() => updateReviewItem(item.id, { classification: 'ignore' })}
                                   variant="default"
                                   className={item.classification === 'ignore' ? '!bg-[#5A4638] !text-[#9B8778]' : ''}
                                 >Ignore</Chip>
@@ -1051,34 +1111,34 @@ export default function ScanPage() {
                                 ) : categoryOptions.length > 0 ? (
                                   <StyledSelect
                                     value={item.category || ''}
-                                    onChange={val => updateItem(item.id, { category: val || null })}
+                                    onChange={val => updateReviewItem(item.id, { category: val || null })}
                                     options={categoryOptions.map(o => ({ value: o.name, label: o.name }))}
                                     placeholder="--"
-                                    size="sm"
-                                    triggerClassName="bg-[#2A1F18] max-w-[100px]"
+                                    size="category"
+                                    triggerClassName="bg-[#2A1F18] min-w-[130px] sm:min-w-[160px]"
                                   />
                                 ) : (
                                   <input
                                     type="text"
                                     value={item.category || ''}
-                                    onChange={e => updateItem(item.id, { category: e.target.value || null })}
+                                    onChange={e => updateReviewItem(item.id, { category: e.target.value || null })}
                                     placeholder="cat"
                                     className="bg-[#2A1F18] text-[#F4EDE3] text-[10px] rounded px-1 py-0.5 border border-[#5A4638] focus:outline-none focus:border-[#D49A4A] placeholder-[#6A5140] w-16"
                                   />
                                 )}
 
-                                {(item.classification === 'shared' || item.classification === 'person') && people.length > 0 && (
+                                {(item.classification === 'shared' || item.classification === 'person') && review.people.length > 0 && (
                                   <>
                                     <span className="text-[#6A5140] text-[10px] ml-1">
                                       {item.classification === 'shared' ? 'with:' : '→'}
                                     </span>
-                                    {people.map(person => (
+                                    {review.people.map(person => (
                                       <Chip
                                         key={person.id}
                                         selected={item.sharedWith.includes(person.id)}
                                         onClick={() => {
                                           if (item.classification === 'person') {
-                                            updateItem(item.id, { sharedWith: [person.id] })
+                                            updateReviewItem(item.id, { sharedWith: [person.id] })
                                           } else {
                                             toggleSharedWith(item.id, person.id)
                                           }
@@ -1087,8 +1147,8 @@ export default function ScanPage() {
                                     ))}
                                   </>
                                 )}
-                                {item.classification === 'everyone' && people.length > 0 && (
-                                  <span className="text-[#6A5140] text-[10px]">with all ({people.length})</span>
+                                {item.classification === 'everyone' && review.people.length > 0 && (
+                                  <span className="text-[#6A5140] text-[10px]">with all ({review.people.length})</span>
                                 )}
                               </div>
                             </div>
@@ -1103,71 +1163,171 @@ export default function ScanPage() {
           })()}
         </Card>
 
-        {result && showSummary && <Card>
+        {showSummary && (
+          <Card>
             <h2 className="text-sm font-semibold text-[#F4EDE3] mb-2">Summary</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-              {result.summary.itemsSubtotal != null && (
+              {review.itemsSubtotal != null && (
                 <div>
                   <span className="text-[#9B8778] text-xs">Subtotal</span>
-                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(result.summary.itemsSubtotal)}</p>
+                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.itemsSubtotal)}</p>
                 </div>
               )}
-              {result.summary.tax != null && (
+              {review.discount != null && (
+                <div>
+                  <span className="text-[#9B8778] text-xs">Savings</span>
+                  <p className="text-[#93B889] font-semibold">-{formatPrice(Math.abs(review.discount))}</p>
+                </div>
+              )}
+              {review.tax != null && (
                 <div>
                   <span className="text-[#9B8778] text-xs">Tax</span>
-                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(result.summary.tax)}</p>
+                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.tax)}</p>
                 </div>
               )}
-              {result.summary.deliveryFee != null && (
+              {review.deliveryFee != null && (
                 <div>
                   <span className="text-[#9B8778] text-xs">Delivery</span>
-                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(result.summary.deliveryFee)}</p>
+                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.deliveryFee)}</p>
                 </div>
               )}
-              {result.summary.tip != null && (
+              {review.tip != null && (
                 <div>
                   <span className="text-[#9B8778] text-xs">Tip</span>
-                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(result.summary.tip)}</p>
+                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.tip)}</p>
                 </div>
               )}
-              {result.summary.discount != null && (
+              {review.serviceFee != null && (
                 <div>
-                  <span className="text-[#9B8778] text-xs">Discount</span>
-                  <p className="text-[#93B889] font-semibold">-{formatPrice(Math.abs(result.summary.discount))}</p>
+                  <span className="text-[#9B8778] text-xs">Service Fee</span>
+                  <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.serviceFee)}</p>
                 </div>
               )}
-              {result.summary.total != null && (
+              {review.printedTotal != null && (
                 <div>
-                  <span className="text-[#9B8778] text-xs">Total</span>
-                  <p className="text-[#D49A4A] font-semibold">{formatPrice(result.summary.total)}</p>
+                  <span className="text-[#9B8778] text-xs">Printed Total</span>
+                  <p className="text-[#D49A4A] font-semibold">{formatPrice(review.printedTotal)}</p>
                 </div>
               )}
-              {result.summary.totalCharged != null && (
+              {review.chargedAmount != null && (
                 <div>
                   <span className="text-[#9B8778] text-xs">Charged</span>
-                  <p className="text-[#D49A4A] font-semibold">{formatPrice(result.summary.totalCharged)}</p>
+                  <p className="text-[#D49A4A] font-semibold">{formatPrice(review.chargedAmount)}</p>
                 </div>
               )}
             </div>
-            {adjustments.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#5A4638]/50">
-                <p className="text-[#D8755D] text-xs font-medium mb-1.5">Adjustments & Refunds</p>
-                <div className="space-y-1">
-                  {adjustments.map((adj, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <span className="text-[#9B8778]">{adj.name}</span>
-                      <span className="text-[#D8755D]">-{formatPrice(Math.abs(adj.amount ?? 0))}</span>
-                    </div>
-                  ))}
-                </div>
+          </Card>
+        )}
+
+        <Card>
+          <h2 className="text-sm font-semibold text-[#F4EDE3] mb-2">Amount to Split</h2>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              onClick={() => setFinalAmountMode('printed_total')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                review.finalAmountMode === 'printed_total'
+                  ? 'bg-[#D49A4A] text-white'
+                  : 'bg-[#2A1F18] text-[#9B8778] hover:bg-[#3A2A22]'
+              }`}
+            >
+              Use Printed Total
+            </button>
+            <button
+              onClick={() => setFinalAmountMode('items_only')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                review.finalAmountMode === 'items_only'
+                  ? 'bg-[#D49A4A] text-white'
+                  : 'bg-[#2A1F18] text-[#9B8778] hover:bg-[#3A2A22]'
+              }`}
+            >
+              Use Items Only
+            </button>
+            <button
+              onClick={() => setFinalAmountMode('items_plus_tax')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                review.finalAmountMode === 'items_plus_tax'
+                  ? 'bg-[#D49A4A] text-white'
+                  : 'bg-[#2A1F18] text-[#9B8778] hover:bg-[#3A2A22]'
+              }`}
+            >
+              Use Items + Tax
+            </button>
+            <button
+              onClick={() => setFinalAmountMode('custom')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                review.finalAmountMode === 'custom'
+                  ? 'bg-[#D49A4A] text-white'
+                  : 'bg-[#2A1F18] text-[#9B8778] hover:bg-[#3A2A22]'
+              }`}
+            >
+              Custom
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[#9B8778] text-sm">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={activeAmount || ''}
+              onChange={e => {
+                const val = e.target.value ? parseFloat(e.target.value) : 0
+                setReview(prev => prev ? {
+                  ...prev,
+                  finalAmountToSplit: round2(val),
+                  finalAmountMode: 'custom' as FinalAmountMode,
+                } : prev)
+              }}
+              className="w-40 bg-[#1B120E] text-[#D49A4A] text-lg font-bold border border-[#5A4638] rounded-lg px-3 py-2 focus:outline-none focus:border-[#D49A4A]"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-[#9B8778] mt-3">
+            <div>
+              <span>Included items total</span>
+              <p className="text-[#F4EDE3] font-semibold">{formatPrice(calcResult.includedItemsTotal)}</p>
+            </div>
+            <div>
+              <span>Ignored items total</span>
+              <p className="text-[#5A4638] font-semibold">{formatPrice(calcResult.ignoredItemsTotal)}</p>
+            </div>
+            {review.discount != null && (
+              <div>
+                <span>Savings</span>
+                <p className="text-[#93B889] font-semibold">-{formatPrice(Math.abs(review.discount))}</p>
               </div>
             )}
+            {review.tax != null && (
+              <div>
+                <span>Tax</span>
+                <p className="text-[#F4EDE3] font-semibold">{formatPrice(review.tax)}</p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {adjustments.filter(a => a.amount == null || Math.abs(a.amount) > 0.005).length > 0 && (
+          <Card>
+            <p className="text-[#D8755D] text-xs font-medium mb-1.5">Adjustments</p>
+            <div className="space-y-1">
+              {adjustments
+                .filter(a => a.amount == null || Math.abs(a.amount) > 0.005)
+                .map((adj, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-[#9B8778]">{adj.name}</span>
+                  <span className="text-[#D8755D]">{adj.amount != null && adj.amount < 0 ? '' : '-'}{formatPrice(Math.abs(adj.amount ?? 0))}</span>
+                </div>
+              ))}
+            </div>
           </Card>
-        }
+        )}
 
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-[#F4EDE3]">People ({people.length})</h2>
+            <h2 className="text-sm font-semibold text-[#F4EDE3]">People ({review.people.length})</h2>
             <button
               onClick={addPerson}
               className="flex items-center gap-1 text-xs text-[#D49A4A] hover:text-[#C1883A] transition-colors"
@@ -1177,11 +1337,11 @@ export default function ScanPage() {
             </button>
           </div>
 
-          {people.length === 0 ? (
+          {review.people.length === 0 ? (
             <p className="text-[#6A5140] text-sm">Add people to split shared items with them.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {people.map(person => (
+              {review.people.map(person => (
                 <div
                   key={person.id}
                   className="flex items-center gap-1.5 bg-[#2A1F18] text-[#F4EDE3] px-3 py-1.5 rounded-full text-xs font-semibold"
@@ -1230,26 +1390,26 @@ export default function ScanPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm mb-2">
             <div>
               <span className="text-[#9B8778] text-xs">My Share</span>
-              <p className="text-[#F4EDE3] font-semibold text-base">{formatPrice(splitTotals.myShare)}</p>
+              <p className="text-[#F4EDE3] font-semibold text-base">{formatPrice(calcResult.myShare)}</p>
             </div>
             <div>
               <span className="text-[#9B8778] text-xs">They Owe</span>
-              <p className="text-[#D49A4A] font-semibold text-base">{formatPrice(splitTotals.theyOwe)}</p>
+              <p className="text-[#D49A4A] font-semibold text-base">{formatPrice(calcResult.theyOwe)}</p>
             </div>
             <div>
               <span className="text-[#9B8778] text-xs">Personal</span>
-              <p className="text-[#93B889] font-semibold">{formatPrice(splitTotals.personalTotal)}</p>
+              <p className="text-[#93B889] font-semibold">{formatPrice(calcResult.personalTotal)}</p>
             </div>
             <div>
               <span className="text-[#9B8778] text-xs">Ignored</span>
-              <p className="text-[#5A4638] font-semibold">{formatPrice(items.filter(i => i.classification === 'ignore').reduce((s, i) => s + i.finalPrice, 0))}</p>
+              <p className="text-[#5A4638] font-semibold">{formatPrice(calcResult.ignoredItemsTotal)}</p>
             </div>
           </div>
 
-          {people.length > 0 && (
+          {review.people.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mb-2">
-              {people.map(person => {
-                const owes = splitTotals.personOwes?.[person.id] ?? 0
+              {review.people.map(person => {
+                const owes = calcResult.personOwes?.[person.id] ?? 0
                 return (
                   <span key={person.id} className="text-[#B8A99A]">
                     {person.name}: <span className="text-[#D49A4A] font-semibold">{formatPrice(owes)}</span>
@@ -1259,13 +1419,40 @@ export default function ScanPage() {
             </div>
           )}
 
-          {groupPreviews.length > 0 && (
+          <div className="pt-2 border-t border-[#3A2A22] mb-2">
+            <details className="group">
+              <summary className="text-xs text-[#9B8778] cursor-pointer hover:text-[#B8A99A] transition-colors select-none list-none flex items-center gap-1">
+                <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+                Split Details
+              </summary>
+              <div className="mt-1.5 space-y-1 text-xs text-[#9B8778]">
+                <div className="flex justify-between">
+                  <span>Items total (non-ignored)</span>
+                  <span className="text-[#F4EDE3]">{formatPrice(calcResult.includedItemsTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Final amount to split</span>
+                  <span className="text-[#D49A4A]">{formatPrice(activeAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Mode</span>
+                  <span className="text-[#F4EDE3]">{review.finalAmountMode.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Scale factor</span>
+                  <span className="text-[#F4EDE3]">{calcResult.scaleFactor.toFixed(4)}×</span>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          {calcResult.groupPreviews.length > 0 && (
             <div className="pt-2 border-t border-[#3A2A22]">
               <p className="text-xs text-[#93B889] font-semibold mb-1">
-                Will create {groupPreviews.length} expense{groupPreviews.length !== 1 ? 's' : ''}
+                Will create {calcResult.groupPreviews.length} expense{calcResult.groupPreviews.length !== 1 ? 's' : ''}
               </p>
               <div className="space-y-0.5 text-xs">
-                {groupPreviews.map(p => (
+                {calcResult.groupPreviews.map(p => (
                   <div key={p.category} className="flex justify-between text-[#B8A99A]">
                     <span>{p.category} ({p.itemCount} item{p.itemCount !== 1 ? 's' : ''})</span>
                     <span className="text-[#F4EDE3] font-semibold">my share {formatPrice(p.myShare)}</span>
@@ -1297,7 +1484,7 @@ export default function ScanPage() {
             disabled={creating || validationWarnings.some(w => w.includes('No non-ignored'))}
             className="flex-1 bg-[#D49A4A] text-white py-3 rounded-lg font-semibold hover:bg-[#C1883A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
-            {creating ? 'Creating...' : `Create ${groupPreviews.length > 0 ? groupPreviews.length + ' ' : ''}Expense${groupPreviews.length !== 1 ? 's' : ''}`}
+            {creating ? 'Creating...' : `Create ${calcResult.groupPreviews.length > 0 ? calcResult.groupPreviews.length + ' ' : ''}Expense${calcResult.groupPreviews.length !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>

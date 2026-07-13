@@ -136,18 +136,20 @@ export function groupSplitTrackerEntries(
 
   const savedPeople = getSplitPeople()
 
-  return Object.entries(groups).map(([personId, groupEntries]) => {
+  const result = Object.entries(groups).map(([personId, groupEntries]) => {
     const saved = savedPeople.find(p => p.id === personId)
     const nameFromParticipants = groupEntries[0].splitMetadata.split.participants.find(
       p => participantSortKey(p) === personId
     )?.name
     const personName = saved?.name || nameFromParticipants || groupEntries[0].splitMetadata.split.splitWith || 'Unknown person'
 
-    const pendingTotal = groupEntries
+    const sorted = [...groupEntries].sort((a, b) => b.date.localeCompare(a.date))
+
+    const pendingTotal = sorted
       .filter(e => e.status === 'pending')
       .reduce((s, e) => s + e.amountOwed, 0)
 
-    const settledTotal = groupEntries
+    const settledTotal = sorted
       .filter(e => e.status === 'settled')
       .reduce((s, e) => s + e.amountOwed, 0)
 
@@ -156,7 +158,10 @@ export function groupSplitTrackerEntries(
       personName,
       pendingTotal,
       settledTotal,
-      entries: groupEntries,
+      entries: sorted,
     }
   })
+
+  result.sort((a, b) => a.personName.localeCompare(b.personName))
+  return result
 }

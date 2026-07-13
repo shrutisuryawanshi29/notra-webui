@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isSetupComplete, loadConfig, getExpenseConfig } from '@/lib/config'
 import { useCache } from '@/hooks/use-notra-cache'
 import { extractSplitTrackerEntries, groupSplitTrackerEntries, getSplitMethodLabel } from '@/lib/split-metadata'
-import { stablePersonId } from '@/lib/notion-properties'
 import { buildUpdatedSplitDetails } from '@/lib/notion-payload'
 import Card from '@/components/Card'
 import Chip from '@/components/Chip'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import Toast from '@/components/Toast'
-import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import SplitDetailModal from '@/components/SplitDetailModal'
+import { RefreshCw, Eye } from 'lucide-react'
+import type { SplitTrackerEntry } from '@/types/transaction'
 
 type FilterMode = 'all' | 'pending' | 'settled'
 
@@ -21,7 +22,7 @@ export default function SplitTrackerPage() {
   const router = useRouter()
   const { state, loadData } = useCache()
   const [filter, setFilter] = useState<FilterMode>('all')
-  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
+  const [detailEntry, setDetailEntry] = useState<SplitTrackerEntry | null>(null)
   const [errorToast, setErrorToast] = useState('')
 
   useEffect(() => {
@@ -42,15 +43,6 @@ export default function SplitTrackerPage() {
 
   const totalPendingOwed = groups.reduce((s, g) => s + g.pendingTotal, 0)
   const totalSettled = groups.reduce((s, g) => s + g.settledTotal, 0)
-
-  const toggleExpand = useCallback((key: string) => {
-    setExpandedEntries(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
 
   const toggleSettlement = async (
     transactionId: string,
@@ -177,33 +169,11 @@ export default function SplitTrackerPage() {
                   const methodLabel = getSplitMethodLabel(method)
                   const isReceipt = method === 'receiptMultiPerson'
 
-                  const origParticipant = split.participants.find(
-                    p => p.id === entry.participantId
-                  ) || split.participants.find(
-                    p => p.name && stablePersonId(p.name) === entry.participantId
-                  )
-                  const origId = origParticipant?.id || entry.participantId
-
                   const allItems = (split.items || []).filter(
                     item => item.assignment !== 'ignore'
                   )
 
-                  const participantItems = allItems.filter(
-                    item =>
-                      item.assignment === 'everyone' ||
-                      item.sharedWith.includes(origId)
-                  )
-
-                  const displayItems = participantItems.length > 0 ? participantItems : allItems
-                  const itemCount = displayItems.length
-                  const isExpanded = expandedEntries.has(entryKey)
-
-                  const categories = [...new Set(
-                    displayItems.map(i => i.category).filter(Boolean)
-                  )] as string[]
-                  const categorySummary = categories.length > 0
-                    ? categories.join(', ')
-                    : (entry.category || '')
+                  const itemCount = allItems.length
 
                   return (
                     <div
@@ -228,34 +198,10 @@ export default function SplitTrackerPage() {
                             <span>{group.personName} owes <span className="text-[#D8755D]">${owes.toFixed(2)}</span></span>
                           </p>
                           {isReceipt && itemCount > 0 && (
-                            <button
-                              onClick={() => toggleExpand(entryKey)}
-                              className="flex items-center gap-1 mt-1 text-[#9B8778] hover:text-[#B8A99A] text-[11px] transition-colors"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown size={12} />
-                              ) : (
-                                <ChevronRight size={12} />
-                              )}
-                              <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
-                              {categorySummary && (
-                                <span>• {categorySummary}</span>
-                              )}
-                              <span>• {isExpanded ? 'Hide' : 'View'} items</span>
-                            </button>
-                          )}
-                          {isExpanded && displayItems.length > 0 && (
-                            <div className="mt-2 space-y-0.5 pl-3 border-l border-[#5A4638]/40">
-                              {displayItems.map((item, idx) => (
-                                <p key={idx} className="text-[#9B8778] text-[10px] leading-relaxed">
-                                  {item.name}
-                                  <span className="text-[#B8A99A] ml-1">${item.price.toFixed(2)}</span>
-                                  {item.category && categorySummary !== item.category && (
-                                    <span className="text-[#5A4638] ml-1">({item.category})</span>
-                                  )}
-                                </p>
-                              ))}
-                            </div>
+                            <p className="text-[#9B8778] text-[11px] mt-1">
+                              {itemCount} item{itemCount !== 1 ? 's' : ''}
+                              {entry.category ? ` • ${entry.category}` : ''}
+                            </p>
                           )}
                         </div>
                         <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
@@ -278,6 +224,13 @@ export default function SplitTrackerPage() {
                           >
                             {entry.status === 'settled' ? 'Settled' : 'Pending'}
                           </button>
+                          <button
+                            onClick={() => setDetailEntry(entry)}
+                            className="flex items-center gap-1 text-[#9B8778] hover:text-[#B8A99A] text-[11px] transition-colors"
+                          >
+                            <Eye size={12} />
+                            View Details
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -288,6 +241,11 @@ export default function SplitTrackerPage() {
           ))}
         </div>
       )}
+      <SplitDetailModal
+        open={!!detailEntry}
+        entry={detailEntry!}
+        onClose={() => setDetailEntry(null)}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { NotionPropertyValue } from './notion'
+import type { ItemStatus, GeminiClassification, GeminiReceiptPerson } from './gemini'
 
 export interface NormalizedTransaction {
   id: string
@@ -61,6 +62,16 @@ export interface ReceiptScanMetadata {
   groupSubtotal?: number | null
   groupTax?: number | null
   originalReceiptTotal?: number | null
+
+  printedTotal?: number | null
+  chargedAmount?: number | null
+  finalAmountToSplit?: number
+  finalAmountMode?: FinalAmountMode
+  manualAdjustment?: number
+  manualAdjustmentNote?: string
+  splitItems?: ReceiptReviewItem[]
+  itemStatuses?: Record<string, ItemStatus>
+  warnings?: string[]
 }
 
 export interface SplitPerson {
@@ -130,4 +141,62 @@ export interface ExpenseAnalytics {
   totalSpend: number
   totalIncome: number
   netBalance: number
+}
+
+export type FinalAmountMode = 'printed_total' | 'items_only' | 'items_plus_tax' | 'custom'
+
+export interface ReceiptReviewItem {
+  id: string
+  name: string
+  quantity: number | null
+  unitPrice: number | null
+  finalPrice: number
+  status: ItemStatus
+  category: string | null
+  classification: GeminiClassification
+  sharedWith: string[]
+}
+
+export interface ReceiptReviewState {
+  merchant: string | null
+  platform: string | null
+  receiptType: string | null
+  date: string | null
+  orderNumber: string | null
+  currency: string
+  rawText: string | null
+
+  printedTotal: number | null
+  chargedAmount: number | null
+  itemsSubtotal: number | null
+  tax: number | null
+  deliveryFee: number | null
+  tip: number | null
+  serviceFee: number | null
+  discount: number | null
+
+  adjustments: ReceiptAdjustment[]
+  items: ReceiptReviewItem[]
+  people: GeminiReceiptPerson[]
+
+  finalAmountMode: FinalAmountMode
+  finalAmountToSplit: number
+  manualAdjustment: number
+  manualAdjustmentNote: string
+
+  warnings: string[]
+}
+
+export interface ReceiptAdjustment {
+  name: string
+  type: string
+  amount: number | null
+}
+
+export interface ReceiptRefundAdjustment {
+  id: string
+  date: string
+  amount: number
+  itemName: string
+  note: string
 }

@@ -1,43 +1,39 @@
 import { NextResponse } from 'next/server'
 import { geminiGenerateContentURL } from '@/lib/gemini-config'
-import { GeminiReceiptResponse, GeminiReceiptResult, GeminiReceiptItem, GeminiReceiptSummary, GeminiReceiptAdjustment } from '@/types/gemini'
+import { ItemStatus, GeminiReceiptResponse, GeminiReceiptResult, GeminiReceiptItem, GeminiReceiptSummary, GeminiReceiptAdjustment } from '@/types/gemini'
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11)
 }
 
-const REFUND_PATTERNS = /^(refund|return|cancel|cancelled|void|credit|not charged|adjusted)/i
-
-function isRefundItem(name: string, rawText: string | null, finalPrice: number): boolean {
-  if (REFUND_PATTERNS.test(name)) return true
-  if (rawText && REFUND_PATTERNS.test(rawText)) return true
-  if (finalPrice <= 0) return true
-  return false
+function coerceStatus(s: string | null | undefined): ItemStatus {
+  const valid: Set<string> = new Set([
+    'purchased', 'return_pending', 'return_complete', 'returned',
+    'refunded', 'refund_complete', 'cancelled', 'substituted',
+    'not_charged', 'excluded', 'unknown',
+  ])
+  if (s && valid.has(s)) return s as ItemStatus
+  return 'purchased'
 }
 
 function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string): GeminiReceiptResult {
   const warnings: string[] = response.warnings ?? []
-  const extraAdjustments: GeminiReceiptAdjustment[] = []
 
   const items: GeminiReceiptItem[] = []
+
   for (const rawItem of response.items ?? []) {
     const name = rawItem.name.trim()
     if (name.length === 0) continue
-    if (isRefundItem(name, rawItem.rawText ?? null, rawItem.finalPrice)) {
-      extraAdjustments.push({
-        name,
-        type: 'refund',
-        amount: Math.abs(rawItem.finalPrice),
-        description: rawItem.rawText ?? null,
-      })
-      continue
-    }
+
+    const status = coerceStatus(rawItem.status)
+
     items.push({
       id: generateId(),
       name,
       quantity: rawItem.quantity ?? null,
       unitPrice: rawItem.unitPrice ?? null,
       finalPrice: rawItem.finalPrice,
+      status,
       categoryHint: rawItem.categoryHint ?? null,
       category: rawItem.categoryHint ?? null,
       rawText: rawItem.rawText ?? null,
@@ -57,6 +53,7 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
         quantity: null,
         unitPrice: null,
         finalPrice: adj.amount,
+        status: 'purchased',
         categoryHint: null,
         category: null,
         rawText: adj.description ?? null,
@@ -67,18 +64,6 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
     }
   }
 
-  const itemSum = items.reduce((sum, item) => sum + item.finalPrice, 0)
-  if (response.summary?.itemsSubtotal != null && Math.abs(itemSum - response.summary.itemsSubtotal) > 0.1) {
-    const refundTotal = extraAdjustments.reduce((s, a) => s + (a.amount ?? 0), 0)
-    const adjustedExpected = response.summary.itemsSubtotal - refundTotal
-    if (Math.abs(itemSum - adjustedExpected) > 0.1) {
-      const msg = `Item total ($${itemSum.toFixed(2)}) differs from receipt subtotal ($${response.summary.itemsSubtotal.toFixed(2)}). Please review.`
-      if (!warnings.some(w => w.includes('differs from receipt subtotal'))) {
-        warnings.push(msg)
-      }
-    }
-  }
-
   if (items.length === 0) {
     warnings.push('No receipt items were detected. You can add items manually.')
   }
@@ -86,23 +71,26 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
   const s = response.summary
   const summary: GeminiReceiptSummary = {
     itemsSubtotal: s?.itemsSubtotal ?? null,
+    discount: s?.discount ?? null,
     tax: s?.tax ?? null,
     serviceFee: s?.serviceFee ?? null,
     deliveryFee: s?.deliveryFee ?? null,
     tip: s?.tip ?? null,
-    discount: s?.discount ?? null,
-    total: s?.total ?? null,
-    totalCharged: s?.totalCharged ?? null,
+    printedTotal: s?.printedTotal ?? null,
+    printedCharged: s?.printedCharged ?? null,
+    total: s?.printedTotal ?? s?.total ?? null,
+    totalCharged: s?.printedCharged ?? s?.totalCharged ?? null,
   }
 
   const adjustments: GeminiReceiptAdjustment[] = [
-    ...extraAdjustments,
     ...(response.adjustments ?? [])
       .filter(adj => !(adj.type === 'weightAdjustment' && adj.amount && adj.amount > 0))
       .map(adj => ({
         name: adj.name,
         type: adj.type ?? 'unknown',
         amount: adj.amount ?? null,
+        alreadyIncludedInPrintedTotal: adj.alreadyIncludedInPrintedTotal ?? null,
+        appliesToItemName: adj.appliesToItemName ?? null,
         description: adj.description ?? null,
       })),
   ]
@@ -110,6 +98,7 @@ function validateAndBuildResult(response: GeminiReceiptResponse, rawText: string
   return {
     merchant: response.merchant ?? null,
     platform: response.platform ?? null,
+    receiptType: response.receiptType ?? null,
     date: response.date ?? null,
     orderNumber: response.orderNumber ?? null,
     currency: response.currency ?? 'USD',
@@ -143,31 +132,76 @@ Return a JSON object with this exact structure:
 {
   "merchant": "string or null",
   "platform": "string or null",
+  "receiptType": "store|online_order|invoice|refund|delivery|unknown",
   "date": "YYYY-MM-DD or null",
   "orderNumber": "string or null",
   "currency": "USD",
-  "items": [{"name": "string", "quantity": null_or_number, "unitPrice": null_or_number, "finalPrice": number, "categoryHint": "string or null", "rawText": "string or null"}],
-  "summary": {"itemsSubtotal": null_or_number, "tax": null_or_number, "serviceFee": null_or_number, "deliveryFee": null_or_number, "tip": null_or_number, "discount": null_or_number, "total": null_or_number, "totalCharged": null_or_number},
-  "adjustments": [{"name": "string", "type": "refund|weightAdjustment|substitution|discount|fee|unknown", "amount": null_or_number, "description": "string or null"}],
+  "items": [
+    {
+      "name": "string",
+      "quantity": null_or_number,
+      "unitPrice": null_or_number,
+      "finalPrice": 0,
+      "status": "purchased|return_pending|return_complete|returned|refunded|refund_complete|cancelled|substituted|not_charged|unknown",
+      "categoryHint": "string or null",
+      "rawText": "string or null"
+    }
+  ],
+  "summary": {
+    "itemsSubtotal": null_or_number,
+    "discount": null_or_number,
+    "tax": null_or_number,
+    "serviceFee": null_or_number,
+    "deliveryFee": null_or_number,
+    "tip": null_or_number,
+    "printedTotal": null_or_number,
+    "printedCharged": null_or_number
+  },
+  "adjustments": [
+    {
+      "name": "string",
+      "type": "discount|savings|weightAdjustment|substitution|fee|tax|tip|delivery|unknown",
+      "amount": 0,
+      "alreadyIncludedInPrintedTotal": true_or_false_or_null,
+      "appliesToItemName": "string or null",
+      "description": "string or null"
+    }
+  ],
   "warnings": ["string"]
 }
 
-RULES:
-- items must contain ONLY real purchased products
-- do NOT include subtotal, tax, total, payment, delivery fee, tip, service fee, authorization, or order number as items
-- put ALL fees, taxes, tips, delivery, and discounts in summary
-- put refunds, NOT CHARGED, and zero-amount adjustments in adjustments
-- CHARGED weight adjustments are real purchase items — include them in items with their final charged price
-- for Instacart, parse by sections:
-  - ITEMS FOUND section → items
-  - ADJUSTMENTS / WEIGHT ADJUSTMENTS section → include CHARGED adjusted items (positive amount) in items, NOT in adjustments
-  - NOT CHARGED / refunded items → adjustments only, do NOT include as items
-  - ORDER TOTALS / CHARGES section → summary only
-- for Walmart: product lines with Qty and price -> items; Free delivery/Tax/Tip/Subtotal/Total -> summary
-- use final charged prices, not original unit prices or delta amounts
-- the sum of items[].finalPrice should match summary.itemsSubtotal when possible
-- for Instacart loyalty savings, use the final price shown after savings
-- when uncertain, add a warning instead of inventing data`
+ITEM STATUS RULES:
+- All receipt item lines must be included in items[].
+- Do NOT exclude any item lines.
+- purchased items → status "purchased"
+- Items being returned → status "return_pending", "returned", or "refunded"
+- Completed returns/refunds → status "return_complete" or "refund_complete"
+- Cancelled items → status "cancelled"
+- Items with "not charged" → status "not_charged"
+- Substituted items → status "substituted"
+- finalPrice = the item's line total on the receipt. For returned items this may be negative if shown as a credit.
+- Duplicate item lines must be preserved. Do NOT deduplicate by name.
+- Same item name on multiple lines means multiple items unless quantity clearly shows otherwise.
+
+ADJUSTMENT RULES:
+- adjustments[] is for receipt-level line items that are not products: discounts, savings, fees, tips, delivery, service fees.
+- Do NOT put returned/refunded items in adjustments. They belong in items[] with their status.
+- For Walmart: returned/refunded items appear as line items. Do not move them to adjustments.
+- If unsure whether an adjustment is already included in the printed total, set alreadyIncludedInPrintedTotal=null and add a warning.
+
+SUMMARY RULES:
+- itemsSubtotal = subtotal printed on receipt (before discounts/tax)
+- discount = total discount/savings amount
+- printedTotal = total printed on receipt
+- printedCharged = amount actually charged/paid if shown separately
+
+GENERAL RULES:
+- Do NOT include subtotal, tax, total, payment, delivery fee, tip, service fee, authorization, or order number as items.
+- Put ALL fees, taxes, tips, delivery in summary fields.
+- CHARGED weight adjustments are real purchase items — include in items with final charged price.
+- For Instacart: parse by sections (ITEMS FOUND, ADJUSTMENTS, ORDER TOTALS).
+- When uncertain, always prefer adding a warning over guessing silently.
+- Preserve all item lines — do not drop any.`
 
     const body = {
       contents: [
