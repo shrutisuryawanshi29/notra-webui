@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useCache } from '@/hooks/use-notra-cache'
 import Link from 'next/link'
 import { isSetupComplete, getExpenseConfig, getExpenseMapping, getGeminiKey, getNotionToken, loadConfig } from '@/lib/config'
 import { getStoredGeminiModel } from '@/lib/gemini-config'
@@ -107,6 +108,7 @@ function isNonPurchasedStatus(s: string | null | undefined): boolean {
 
 export default function ScanPage() {
   const router = useRouter()
+  const { loadData } = useCache()
 
   const [phase, setPhase] = useState<Phase>('upload')
   const [loading, setLoading] = useState(false)
@@ -627,23 +629,45 @@ export default function ScanPage() {
           warnings: [...validationWarnings],
         }
 
+        const groupTheyOwe = round2(groupPaidAmount - groupMyShare)
+
+        const groupParticipants = review.people.map(p => {
+          let owes = 0
+          for (const item of effectiveItems) {
+            switch (item.assignment) {
+              case 'person':
+                if (item.sharedWith.includes(p.id)) owes += item.price
+                break
+              case 'shared': {
+                const shareCount = item.sharedWith.length
+                if (item.sharedWith.includes(p.id)) owes += item.price / (shareCount + 1)
+                break
+              }
+              case 'everyone':
+                owes += item.price / (review.people.length + 1)
+                break
+            }
+          }
+          return {
+            id: p.id,
+            name: p.name,
+            owes: round2(owes),
+            status: 'pending' as const,
+            settledAt: null,
+          }
+        })
+
         const groupSplitMetadata: SplitMetadata = {
           version: 2,
           split: {
             enabled: review.people.length > 0,
             paidAmount: groupPaidAmount,
             myShare: groupMyShare,
-            theyOwe: round2(groupPaidAmount - groupMyShare),
+            theyOwe: groupTheyOwe,
             type: review.people.length > 0 ? 'receiptMultiPerson' : 'receipt',
             status: 'pending',
-            participants: review.people.map(p => ({
-              id: p.id,
-              name: p.name,
-              owes: calcResult.personOwes[p.id] ?? 0,
-              status: 'pending' as const,
-              settledAt: null,
-            })),
-            items: splitCandidates.map(item => ({
+            participants: groupParticipants,
+            items: groupItems.map(item => ({
               name: item.name,
               price: item.finalPrice,
               assignment: item.classification,
@@ -694,13 +718,18 @@ export default function ScanPage() {
         throw new Error(msg)
       }
 
+      try {
+        await loadData()
+      } catch {
+        // cache refresh is best-effort; navigation still proceeds
+      }
       router.push('/dashboard')
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create transaction')
     } finally {
       setCreating(false)
     }
-  }, [review, activeAmount, calcResult, categoryOptions, categoryType, router, validationWarnings])
+  }, [review, activeAmount, calcResult, categoryOptions, categoryType, router, validationWarnings, loadData])
 
   const handleRetake = useCallback(() => {
     setPhase('upload')
