@@ -43,13 +43,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | `src/lib/notion-client.ts` | Raw Notion API client (version `2022-06-28`) |
 | `src/lib/notion-payload.ts` | `buildNotionProperties` — constructs Notion API page payloads |
 | `src/lib/split-calc.ts` | `calculateReceiptSplit`, `calculateEqualSplit`, etc. |
+| `src/lib/split-metadata.ts` | `extractSplitTrackerEntries`, `groupSplitTrackerEntries`, `getSplitMethodLabel` |
+| `src/lib/receipt-calc.ts` | `calculateReceiptSplitTotals`, `getDefaultFinalAmount`, `computeIncludedItemsTotal` |
 | `src/lib/category-suggestions.ts` | Local category suggestion engine (mirrors iOS logic) |
 | `src/hooks/use-notra-cache.tsx` | Global cache with reducer + lookups for relations/budgets |
 | `src/types/transaction.ts` | `NormalizedTransaction`, `SplitMetadata`, `SplitItem` |
 | `src/types/notion.ts` | `NotionPropertyValue` union type |
 | `src/types/gemini.ts` | `GeminiReceiptResult`, `GeminiReceiptItem`, `GeminiReceiptAdjustment` |
 | `src/components/TransactionForm.tsx` | Add/edit expense form with category suggestions, StyledSelect, Toast |
-| `src/components/StyledSelect.tsx` | Custom dark dropdown replacing native `<select>` |
+| `src/components/TransactionRow.tsx` | Individual transaction card with edit/delete/view actions |
+| `src/components/TransactionList.tsx` | Groups transactions by date, renders `TransactionRow` |
+| `src/components/TransactionDetailModal.tsx` | Modal showing transaction + split details on expense/income list click |
+| `src/components/SplitDetailModal.tsx` | Modal for detailed receipt/manual split breakdown in Split Tracker |
+| `src/components/StyledSelect.tsx` | Custom dark dropdown; sizes: `sm`, `category`, `md` |
 | `src/components/Toast.tsx` | Themed error toast replacing native `alert()` |
 | `src/components/ConfirmDialog.tsx` | Themed modal replacing `confirm()` |
 
@@ -72,7 +78,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Receipt Scan Split Calculation
 
-The receipt split calc (`src/app/scan/page.tsx` lines 361-447, reused in `handleCreate`) uses **scale-factor proportional allocation**:
+The receipt split calc (`src/app/scan/page.tsx` review section, reused in `handleCreate`) uses **scale-factor proportional allocation**:
 
 1. Determine `effectiveTotal = totalCharged ?? total` from receipt summary
 2. Subtract tax if `includeTax` is unchecked
@@ -81,6 +87,26 @@ The receipt split calc (`src/app/scan/page.tsx` lines 361-447, reused in `handle
 5. Auto-reconciliation: adjust `myShare` by rounding residual so `myShare + theyOwe = effectiveTotal` within $0.01
 
 This ensures discounts, refunds, tax, and fees are all proportionally distributed. Same formula in all three contexts: `splitTotals` (summary display), `groupPreviews` (per-category preview), and `handleCreate` (actual expense creation).
+
+## Receipt Category Grouping (create flow)
+
+When saving receipt expenses, items are grouped by category and each group creates a separate Notion expense. Each group computes its own:
+- `groupPaidAmount` — scaled group item total
+- `groupMyShare` — computed from ownership of group items only
+- `groupParticipants[].owes` — per-participant total for this group only (not receipt-level)
+
+This ensures Sandy's $5.79 receipt-level owed amount is split across groups ($4.08 Groceries, $1.70 Essentials) rather than duplicated.
+
+## Cache refresh after create
+
+After creating expenses from a receipt scan, `loadData()` from `useCache()` is called before navigation to ensure dashboard/expenses/split-tracker show fresh data immediately.
+
+## Split Tracker
+
+- Entries are grouped by person, sorted alphabetically by person name.
+- Within each person group, entries are sorted by date descending (latest first).
+- Clicking "View Details" opens `SplitDetailModal` showing receipt item breakdown or manual split details.
+- Settlement toggle PATCHes Notion and calls `loadData()` to refresh.
 
 ## Receipt Scan Refund Detection
 

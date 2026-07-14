@@ -103,6 +103,8 @@ git push -u origin main
 | Split expenses (equal, percent, exact, HHS) | ✅ |
 | Receipt scanning with Gemini AI | ✅ |
 | Split tracker (pending/settled per person) | ✅ |
+| Split detail popup (receipt item breakdown) | ✅ |
+| Transaction detail popup (expense/income list) | ✅ |
 | Dashboard charts (weekly, monthly) | ✅ |
 | Budget tracking | ✅ |
 | Receipt refund detection & adjustments | ✅ |
@@ -130,9 +132,11 @@ As you type an expense title, the app suggests categories based on past expenses
 
 ### Themed UI Components
 All native browser popups (`alert`, `confirm`, `<select>`) have been replaced with custom themed components:
-- **StyledSelect** — dark dropdown with gold accent
+- **StyledSelect** — dark dropdown with gold accent (sizes: `sm`, `category`, `md`)
 - **Toast** — auto-dismiss error notification
 - **ConfirmDialog** — modal for destructive actions
+- **TransactionDetailModal** — transaction detail view from expense/income list
+- **SplitDetailModal** — detailed receipt split breakdown in Split Tracker
 
 ## Architecture
 
