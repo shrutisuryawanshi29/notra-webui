@@ -1,17 +1,18 @@
 import { NormalizedTransaction } from '@/types/transaction'
 import { getSplitSubtitle } from '@/lib/split-metadata'
 import Card from './Card'
-import { Pencil, Trash2 } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2 } from 'lucide-react'
 
 interface TransactionRowProps {
   transaction: NormalizedTransaction
   onEdit?: (t: NormalizedTransaction) => void
   onDelete?: (t: NormalizedTransaction) => void
+  onView?: (t: NormalizedTransaction) => void
 }
 
 const SPLIT_COLORS = { pending: '#D49A4A', settled: '#93B889' }
 
-export default function TransactionRow({ transaction, onEdit, onDelete }: TransactionRowProps) {
+export default function TransactionRow({ transaction, onEdit, onDelete, onView }: TransactionRowProps) {
   const isExpense = transaction.databaseRole === 'expense'
   const accentColor = isExpense ? '#D8755D' : '#93B889'
   const color = isExpense ? 'text-[#D8755D]' : 'text-[#93B889]'
@@ -24,7 +25,10 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
   const splitColor = splitStatus ? SPLIT_COLORS[splitStatus] : null
 
   return (
-    <Card className="flex items-center justify-between group">
+    <Card
+      className="flex items-center justify-between group"
+      onClick={onView ? () => onView(transaction) : undefined}
+    >
       <div className="flex-1 min-w-0">
         <p className="text-[#F4EDE3] text-sm font-medium truncate">
           {transaction.title}
@@ -62,6 +66,9 @@ export default function TransactionRow({ transaction, onEdit, onDelete }: Transa
             {isExpense ? '-' : '+'}${transaction.amount.toFixed(2)}
           </p>
         </div>
+        {onView && (
+          <ChevronRight size={14} className="text-[#5A4638] group-hover:text-[#9B8778] transition-colors shrink-0" />
+        )}
         <div className="flex gap-1.5">
           {onEdit && (
             <button

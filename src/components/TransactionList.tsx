@@ -7,9 +7,10 @@ interface TransactionListProps {
   title?: string
   onEdit?: (t: NormalizedTransaction) => void
   onDelete?: (t: NormalizedTransaction) => void
+  onView?: (t: NormalizedTransaction) => void
 }
 
-export default function TransactionList({ transactions, title, onEdit, onDelete }: TransactionListProps) {
+export default function TransactionList({ transactions, title, onEdit, onDelete, onView }: TransactionListProps) {
   const groups = groupTransactionsByDate(transactions)
 
   if (groups.length === 0) {
@@ -37,6 +38,7 @@ export default function TransactionList({ transactions, title, onEdit, onDelete 
                 transaction={t}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onView={onView}
               />
             ))}
           </div>

@@ -8,6 +8,7 @@ import { useFilters } from '@/hooks/use-filters'
 import { NormalizedTransaction } from '@/types/transaction'
 import { ColumnFilter } from '@/types/filters'
 import TransactionList from '@/components/TransactionList'
+import TransactionDetailModal from '@/components/TransactionDetailModal'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import FilterBar from '@/components/FilterBar'
 import FilterSheet from '@/components/FilterSheet'
@@ -78,6 +79,7 @@ function IncomePageContent() {
   )
 
   const [deleteTarget, setDeleteTarget] = useState<NormalizedTransaction | null>(null)
+  const [detailTarget, setDetailTarget] = useState<NormalizedTransaction | null>(null)
   const [errorToast, setErrorToast] = useState('')
 
   const handleEdit = (t: NormalizedTransaction) => {
@@ -166,6 +168,13 @@ function IncomePageContent() {
         transactions={result.filtered}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onView={setDetailTarget}
+      />
+
+      <TransactionDetailModal
+        open={!!detailTarget}
+        transaction={detailTarget}
+        onClose={() => setDetailTarget(null)}
       />
 
       <FilterSheet
